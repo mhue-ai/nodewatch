@@ -168,6 +168,11 @@ body{background:var(--bg-void);color:var(--text-1);font-family:var(--font-body);
 .empty-state p{margin-bottom:16px}
 .pulse{width:8px;height:8px;border-radius:50%;background:var(--accent-mint);animation:pulse 2s ease-in-out infinite;display:inline-block}
 @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(50,214,168,.4)}50%{opacity:.7;box-shadow:0 0 0 6px rgba(50,214,168,0)}}
+.coffee-block{margin:36px 0 20px;background:linear-gradient(180deg,var(--bg-card),var(--bg-elevated));border:1px solid var(--border-1);border-radius:16px;padding:22px 24px;text-align:center}
+.coffee-block h3{font-size:18px;font-weight:700;color:var(--accent-gold);margin:0 0 8px}
+.coffee-block p{margin:0 0 10px;color:var(--text-2);font-size:14px}
+.coffee-wallet{display:inline-block;font-family:var(--font-mono);font-size:13px;word-break:break-all;background:var(--bg-void);border:1px solid var(--border-1);border-radius:10px;padding:10px 14px;color:var(--accent-mint);margin-bottom:8px}
+.coffee-note{font-size:12px;color:var(--text-3)}
 footer.site-footer{text-align:center;padding:24px;font-size:12px;color:var(--text-3);border-top:1px solid var(--border-1);margin-top:40px}
 footer.site-footer a{color:var(--accent-mint);text-decoration:none}
 footer.site-footer a:hover{text-decoration:underline}
@@ -238,6 +243,12 @@ footer.site-footer a:hover{text-decoration:underline}
     <div id="tab-events" style="display:none">
       <div class="event-list" id="event-list"></div>
     </div>
+  </div>
+  <div class="coffee-block">
+    <h3>Buy Mhue a Timpi coffee ☕</h3>
+    <p>If NodeWatch is helping your stack ops, tip the builders.</p>
+    <div class="coffee-wallet">neutaro1e8xal8tqdegu4w48z3fphemd3hc07gech3pfek</div>
+    <div class="coffee-note">Memo optional — just let us know what you shipped.</div>
   </div>
 </div>
 
