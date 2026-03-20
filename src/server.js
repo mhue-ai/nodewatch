@@ -616,13 +616,14 @@ app.delete('/api/wallets/:id', auth, (req, res) => {
 app.get('/api/nodes', auth, (req, res) => res.json(db.prepare('SELECT * FROM nodes WHERE user_id=? ORDER BY type,name').all(req.userId)));
 
 app.post('/api/nodes', auth, (req, res) => {
-  const { name, type, nft_id, guid, host, port, docker_name, draft } = req.body;
+  const { name, type, nft_id, guid, host, port, port2, docker_name, draft } = req.body;
   const wantsDraft = !!draft;
   if (!name || !type || (!wantsDraft && (!host || !port))) return res.status(400).json({ error: 'Missing fields' });
   const definition = definitionForType(type) || {};
+  const extraServices = (definition.extra_services || []).map((service, index) => ({ ...service, port: index === 0 && port2 ? parseInt(port2) : service.port }));
   try {
     const r = db.prepare('INSERT INTO nodes (user_id,name,type,nft_id,guid,host,port,service_name,extra_services_json,docker_name,draft) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-      .run(req.userId, name, type, nft_id || null, guid || null, host || '', port ? parseInt(port) : null, definition.primary_service_name || 'Primary service', JSON.stringify(definition.extra_services || []), docker_name || '-', wantsDraft ? 1 : 0);
+      .run(req.userId, name, type, nft_id || null, guid || null, host || '', port ? parseInt(port) : null, definition.primary_service_name || 'Primary service', JSON.stringify(extraServices), docker_name || '-', wantsDraft ? 1 : 0);
     res.status(201).json(db.prepare('SELECT * FROM nodes WHERE id=?').get(r.lastInsertRowid));
   } catch(e) { res.status(e.message.includes('UNIQUE')?409:500).json({ error: e.message }); }
 });
@@ -630,11 +631,14 @@ app.post('/api/nodes', auth, (req, res) => {
 app.put('/api/nodes/:id', auth, (req, res) => {
   const n = db.prepare('SELECT * FROM nodes WHERE id=? AND user_id=?').get(req.params.id, req.userId);
   if (!n) return res.status(404).json({ error: 'Not found' });
-  const { name,type,nft_id,guid,host,port,docker_name,draft } = req.body;
+  const { name,type,nft_id,guid,host,port,port2,docker_name,draft } = req.body;
   const resolvedType = type || n.type;
   const definition = definitionForType(resolvedType) || {};
+  const existingExtras = parseJsonArray(n.extra_services_json);
+  const baseExtras = definition.extra_services || existingExtras;
+  const extraServices = baseExtras.map((service, index) => ({ ...service, port: index === 0 && port2 !== undefined && port2 !== '' ? parseInt(port2) : service.port }));
   db.prepare('UPDATE nodes SET name=?,type=?,nft_id=?,guid=?,host=?,port=?,service_name=?,extra_services_json=?,docker_name=?,draft=? WHERE id=?')
-    .run(name||n.name,resolvedType,nft_id!==undefined?nft_id:n.nft_id,guid!==undefined?guid:n.guid,host!==undefined?host:n.host,port!==undefined&&port!==''?parseInt(port):n.port,definition.primary_service_name || n.service_name || 'Primary service', JSON.stringify(definition.extra_services || parseJsonArray(n.extra_services_json)), docker_name!==undefined?docker_name:n.docker_name,draft!==undefined?(draft?1:0):n.draft,n.id);
+    .run(name||n.name,resolvedType,nft_id!==undefined?nft_id:n.nft_id,guid!==undefined?guid:n.guid,host!==undefined?host:n.host,port!==undefined&&port!==''?parseInt(port):n.port,definition.primary_service_name || n.service_name || 'Primary service', JSON.stringify(extraServices), docker_name!==undefined?docker_name:n.docker_name,draft!==undefined?(draft?1:0):n.draft,n.id);
   res.json(db.prepare('SELECT * FROM nodes WHERE id=?').get(n.id));
 });
 
