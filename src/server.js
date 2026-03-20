@@ -44,7 +44,9 @@ function migrateLegacySchema() {
 
   if (!legacyUsers && !legacyNodes && !needsWalletBootstrap) return;
 
-  db.transaction(() => {
+  db.pragma('foreign_keys = OFF');
+  try {
+    db.transaction(() => {
     if (legacyUsers) db.exec('ALTER TABLE users RENAME TO users_legacy');
     if (legacyNodes) db.exec('ALTER TABLE nodes RENAME TO nodes_legacy');
 
@@ -102,7 +104,10 @@ function migrateLegacySchema() {
         }
       }
     }
-  })();
+    })();
+  } finally {
+    db.pragma('foreign_keys = ON');
+  }
 }
 
 migrateLegacySchema();
