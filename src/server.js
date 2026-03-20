@@ -37,18 +37,28 @@ function columnExists(table, column) {
   return db.prepare(`PRAGMA table_info(${table})`).all().some((col) => col.name === column);
 }
 
+function getForeignKeyTable(table, fromColumn) {
+  if (!tableExists(table)) return null;
+  const fk = db.prepare(`PRAGMA foreign_key_list(${table})`).all().find((row) => row.from === fromColumn);
+  return fk ? fk.table : null;
+}
+
 function migrateLegacySchema() {
   const legacyUsers = tableExists('users') && columnExists('users', 'address') && !columnExists('users', 'id');
   const legacyNodes = tableExists('nodes') && columnExists('nodes', 'owner') && !columnExists('nodes', 'user_id');
   const needsWalletBootstrap = !tableExists('wallets');
+  const badWalletFk = getForeignKeyTable('wallets', 'user_id') === 'users_legacy';
+  const badNodeFk = getForeignKeyTable('nodes', 'user_id') === 'users_legacy';
 
-  if (!legacyUsers && !legacyNodes && !needsWalletBootstrap) return;
+  if (!legacyUsers && !legacyNodes && !needsWalletBootstrap && !badWalletFk && !badNodeFk) return;
 
   db.pragma('foreign_keys = OFF');
   try {
     db.transaction(() => {
     if (legacyUsers) db.exec('ALTER TABLE users RENAME TO users_legacy');
     if (legacyNodes) db.exec('ALTER TABLE nodes RENAME TO nodes_legacy');
+    if (badWalletFk) db.exec('ALTER TABLE wallets RENAME TO wallets_legacy_bad_fk');
+    if (badNodeFk) db.exec('ALTER TABLE nodes RENAME TO nodes_legacy_bad_fk');
 
     db.exec(`
       CREATE TABLE IF NOT EXISTS users (
@@ -101,6 +111,21 @@ function migrateLegacySchema() {
           const userId = addressToUserId.get(row.owner);
           if (!userId) continue;
           insertNode.run(userId, row.name, row.type, row.nft_id || null, row.guid || null, row.host, row.port, row.docker_name || '-', row.created_at || null);
+        }
+      }
+    } else {
+      if (badWalletFk) {
+        const legacyWalletRows = db.prepare('SELECT user_id, address, label, verified, added_at FROM wallets_legacy_bad_fk').all();
+        const insertWallet = db.prepare('INSERT OR IGNORE INTO wallets (user_id, address, label, verified, added_at) VALUES (?, ?, ?, ?, ?)');
+        for (const row of legacyWalletRows) {
+          insertWallet.run(row.user_id, row.address, row.label || '', row.verified || 0, row.added_at || null);
+        }
+      }
+      if (badNodeFk) {
+        const legacyNodeRows = db.prepare('SELECT user_id, name, type, nft_id, guid, host, port, docker_name, created_at FROM nodes_legacy_bad_fk').all();
+        const insertNode = db.prepare('INSERT OR IGNORE INTO nodes (user_id, name, type, nft_id, guid, host, port, docker_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        for (const row of legacyNodeRows) {
+          insertNode.run(row.user_id, row.name, row.type, row.nft_id || null, row.guid || null, row.host, row.port, row.docker_name || '-', row.created_at || null);
         }
       }
     }
