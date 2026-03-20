@@ -343,8 +343,16 @@ app.post('/api/wallets/address', auth, (req, res) => {
   if (!address.startsWith('neutaro1') || address.length < 40) return res.status(400).json({ error: 'Invalid Neutaro address format' });
 
   const existing = db.prepare('SELECT * FROM wallets WHERE address=?').get(address);
-  if (existing && existing.user_id !== req.userId) return res.status(409).json({ error: 'Wallet linked to another account' });
-  if (existing) return res.json(existing);
+  if (existing && existing.user_id !== req.userId) {
+    const merged = mergeWalletOnlyUserInto(req.userId, existing.user_id);
+    if (!merged) return res.status(409).json({ error: 'Wallet linked to another account' });
+    if (label) db.prepare('UPDATE wallets SET label=? WHERE address=?').run(label, address);
+    return res.json(db.prepare('SELECT * FROM wallets WHERE address=?').get(address));
+  }
+  if (existing) {
+    if (label) db.prepare('UPDATE wallets SET label=? WHERE address=?').run(label, address);
+    return res.json(db.prepare('SELECT * FROM wallets WHERE address=?').get(address));
+  }
 
   try {
     db.prepare('INSERT INTO wallets (user_id, address, label, verified) VALUES (?,?,?,0)').run(req.userId, address, label || '');
