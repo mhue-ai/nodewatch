@@ -28,6 +28,85 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+function tableExists(name) {
+  return !!db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(name);
+}
+
+function columnExists(table, column) {
+  if (!tableExists(table)) return false;
+  return db.prepare(`PRAGMA table_info(${table})`).all().some((col) => col.name === column);
+}
+
+function migrateLegacySchema() {
+  const legacyUsers = tableExists('users') && columnExists('users', 'address') && !columnExists('users', 'id');
+  const legacyNodes = tableExists('nodes') && columnExists('nodes', 'owner') && !columnExists('nodes', 'user_id');
+  const needsWalletBootstrap = !tableExists('wallets');
+
+  if (!legacyUsers && !legacyNodes && !needsWalletBootstrap) return;
+
+  db.transaction(() => {
+    if (legacyUsers) db.exec('ALTER TABLE users RENAME TO users_legacy');
+    if (legacyNodes) db.exec('ALTER TABLE nodes RENAME TO nodes_legacy');
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        google_id TEXT UNIQUE,
+        email TEXT,
+        display_name TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        last_login TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS wallets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        address TEXT NOT NULL UNIQUE,
+        label TEXT DEFAULT '',
+        verified INTEGER DEFAULT 0,
+        added_at TEXT DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS nodes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('guardian','synaptron','collector','geocore')),
+        nft_id TEXT, guid TEXT, host TEXT NOT NULL, port INTEGER NOT NULL,
+        docker_name TEXT DEFAULT '-',
+        created_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(user_id, name)
+      );
+    `);
+
+    if (legacyUsers) {
+      const legacyUsersRows = db.prepare('SELECT address, created_at, last_login FROM users_legacy').all();
+      const insertUser = db.prepare('INSERT INTO users (created_at, last_login) VALUES (?, ?)');
+      const insertWallet = db.prepare('INSERT INTO wallets (user_id, address, label, verified, added_at) VALUES (?, ?, ?, 1, COALESCE(?, datetime(\'now\')))');
+      const addressToUserId = new Map();
+
+      for (const row of legacyUsersRows) {
+        const result = insertUser.run(row.created_at || null, row.last_login || null);
+        const userId = Number(result.lastInsertRowid);
+        addressToUserId.set(row.address, userId);
+        insertWallet.run(userId, row.address, 'Primary Wallet', row.created_at || row.last_login || null);
+      }
+
+      if (legacyNodes) {
+        const insertNode = db.prepare('INSERT INTO nodes (user_id, name, type, nft_id, guid, host, port, docker_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        const legacyNodeRows = db.prepare('SELECT owner, name, type, nft_id, guid, host, port, docker_name, created_at FROM nodes_legacy').all();
+        for (const row of legacyNodeRows) {
+          const userId = addressToUserId.get(row.owner);
+          if (!userId) continue;
+          insertNode.run(userId, row.name, row.type, row.nft_id || null, row.guid || null, row.host, row.port, row.docker_name || '-', row.created_at || null);
+        }
+      }
+    }
+  })();
+}
+
+migrateLegacySchema();
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
