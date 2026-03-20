@@ -1,12 +1,31 @@
 version: '3.8'
 
 services:
+  # ── Caddy — automatic HTTPS via Let's Encrypt ──
+  caddy:
+    image: caddy:2-alpine
+    container_name: timpi-nodewatch-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data       # certs + ACME state
+      - caddy-config:/config
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+    depends_on:
+      - nodewatch
+
+  # ── NodeWatch app ──
   nodewatch:
     build: .
     container_name: timpi-nodewatch
     restart: unless-stopped
-    ports:
-      - "${PORT:-3000}:3000"
+    expose:
+      - "3000"
     volumes:
       - nodewatch-data:/app/data
     environment:
@@ -16,9 +35,12 @@ services:
       - CHECK_TIMEOUT=${CHECK_TIMEOUT:-5000}
       - HISTORY_DAYS=${HISTORY_DAYS:-30}
       - NEUTARO_LCD=${NEUTARO_LCD:-https://api.neutaro.tech}
-    # If you need to check nodes on the host network, uncomment:
-    # network_mode: host
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+    # Uncomment if checking nodes on the Docker host:
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
 
 volumes:
   nodewatch-data:
-    driver: local
+  caddy-data:
+  caddy-config:

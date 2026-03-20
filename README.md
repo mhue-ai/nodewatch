@@ -8,29 +8,46 @@ Part of the **ClawPurse ecosystem** — alongside ClawPurse Wallet, ClawPurse Ga
 
 ## Features
 
-- **Keplr wallet authentication** — sign in with your Neutaro wallet, no passwords
-- **NFT auto-discovery** — detects Guardian, Synaptron, Collector, and GeoCore NFTs from the Neutaro chain
+- **Dual authentication** — sign in with Google or Keplr wallet (or both)
+- **Multi-wallet support** — link multiple Neutaro wallets, add via Keplr or by address
+- **NFT auto-discovery** — detects Guardian, Synaptron, Collector, and GeoCore NFTs across all linked wallets
 - **Node registration** — fill in host, port, GUID for each NFT
 - **Automated health checks** — cron-based HTTP + TCP checks every 5 minutes
+- **Staking dashboard** — aggregated delegations, pending rewards, and validator health across all wallets
+- **Validator monitoring** — jailed status, missed blocks, uptime, commission tracked every 15 minutes
 - **Live dashboard** — status cards, uptime sparklines, latency/uptime trend charts, event log
-- **Multi-user** — each wallet sees only their own nodes
+- **Built-in HTTPS** — Caddy auto-provisions Let's Encrypt certificates, zero config
+- **Multi-user** — each account sees only their own nodes and staking
 - **SQLite storage** — zero-dependency persistence with 30-day history retention
-- **Docker one-liner** — single container, persistent volume
+- **Docker deployment** — two containers (app + Caddy), persistent volumes
 
 ## Quick Start
 
-### Docker (recommended)
+### Docker with automatic HTTPS (recommended)
 
 ```bash
 git clone https://github.com/mhue-ai/nodewatch.git
 cd nodewatch
-cp .env.example .env    # adjust if needed
+cp .env.example .env
+```
+
+Edit `.env` — set your domain (must have DNS pointing to this server):
+
+```
+DOMAIN=nodewatch.clawpurse.ai
+```
+
+Then deploy:
+
+```bash
 docker compose up -d
 ```
 
-Dashboard is at **https://nodewatch.clawpurse.ai**
+Caddy automatically provisions a Let's Encrypt TLS certificate. Dashboard is live at **https://nodewatch.clawpurse.ai** within ~30 seconds.
 
-### Without Docker
+Ports 80 and 443 must be open. Caddy handles the HTTP→HTTPS redirect automatically.
+
+### Local development (no HTTPS)
 
 ```bash
 git clone https://github.com/mhue-ai/nodewatch.git
@@ -40,24 +57,37 @@ cp .env.example .env
 npm start
 ```
 
+Visit `http://localhost:3000` — Keplr signing still works over localhost.
+
 ## Architecture
 
 ```
 ┌──────────────────────────────────────────────┐
 │  Browser (SPA)                                │
-│  ├── Keplr wallet → sign challenge            │
-│  ├── NFT discovery → Neutaro LCD proxy        │
+│  ├── Google Sign-In / Keplr wallet auth       │
+│  ├── Multi-wallet management                  │
+│  ├── NFT discovery → all linked wallets       │
 │  ├── Node CRUD → REST API                     │
-│  └── Dashboard → status/history API           │
+│  ├── Staking → aggregated across wallets      │
+│  └── Dashboard → status/history/trends        │
 └──────────────────┬───────────────────────────┘
-                   │ HTTP
+                   │ HTTPS (port 443)
 ┌──────────────────▼───────────────────────────┐
-│  Express.js Server (single container)         │
-│  ├── Wallet-sig auth (ADR-036)                │
-│  ├── SQLite (users, nodes, checks)            │
-│  ├── Cron health checker (HTTP + TCP)         │
-│  ├── Neutaro LCD proxy (NFT queries)          │
-│  └── Static file server (SPA)                 │
+│  Caddy (auto-TLS via Let's Encrypt)           │
+│  ├── Automatic HTTPS cert provisioning        │
+│  ├── HTTP→HTTPS redirect                      │
+│  ├── HTTP/3, gzip, security headers           │
+│  └── Reverse proxy → nodewatch:3000           │
+└──────────────────┬───────────────────────────┘
+                   │ HTTP (internal)
+┌──────────────────▼───────────────────────────┐
+│  Express.js Server                            │
+│  ├── Google + Keplr auth (sessions by user)   │
+│  ├── Wallet CRUD (multi-wallet per user)      │
+│  ├── Node CRUD + health checker cron          │
+│  ├── Validator health cron (every 15 min)     │
+│  ├── Neutaro LCD proxy (NFTs, staking)        │
+│  └── SQLite (users, wallets, nodes, checks)   │
 └──────────────────────────────────────────────┘
 ```
 
@@ -126,56 +156,66 @@ The browser never contacts your nodes directly — all health checks go through 
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | 3000 | Server port |
-| `CHECK_INTERVAL` | `*/5 * * * *` | Cron schedule for checks |
+| `DOMAIN` | `localhost` | Your domain — Caddy auto-provisions HTTPS |
+| `PORT` | 3000 | Internal server port (Caddy proxies to this) |
+| `CHECK_INTERVAL` | `*/5 * * * *` | Cron schedule for node checks |
 | `CHECK_TIMEOUT` | 5000 | Connection timeout (ms) |
 | `HISTORY_DAYS` | 30 | Days of history to keep |
 | `NEUTARO_LCD` | `https://api.neutaro.tech` | Neutaro REST endpoint |
+| `GOOGLE_CLIENT_ID` | *(empty)* | Google OAuth client ID (optional) |
 
 ## API Endpoints
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/auth/challenge` | No | Get signing challenge |
-| POST | `/api/auth/verify` | No | Verify wallet signature |
-| GET | `/api/auth/session` | Yes | Check session validity |
+| GET | `/api/auth/config` | No | Get Google client ID (if configured) |
+| GET | `/api/auth/challenge` | No | Get Keplr signing challenge |
+| POST | `/api/auth/google` | No | Verify Google ID token, create session |
+| POST | `/api/auth/keplr` | No | Verify wallet signature, create session |
+| GET | `/api/auth/session` | Yes | Check session, get user + wallets |
+| GET | `/api/wallets` | Yes | List linked wallets |
+| POST | `/api/wallets/keplr` | Yes | Add wallet via Keplr (verified) |
+| POST | `/api/wallets/address` | Yes | Add wallet by address (manual) |
+| PUT | `/api/wallets/:id` | Yes | Update wallet label |
+| DELETE | `/api/wallets/:id` | Yes | Remove wallet |
 | GET | `/api/nodes` | Yes | List user's nodes |
 | POST | `/api/nodes` | Yes | Register a node |
 | PUT | `/api/nodes/:id` | Yes | Update a node |
 | DELETE | `/api/nodes/:id` | Yes | Delete a node |
-| GET | `/api/status` | Yes | Current status + 24h uptime |
-| GET | `/api/history?hours=24` | Yes | Trend data for charts |
-| GET | `/api/timeline/:nodeId` | Yes | Per-node check timeline |
-| GET | `/api/neutaro/nfts/:addr` | No | Proxy NFT query to LCD |
+| GET | `/api/status` | Yes | Current node status + 24h uptime |
+| GET | `/api/history?hours=24` | Yes | Node trend data for charts |
+| GET | `/api/staking/my-validators` | Yes | Delegations + rewards across all wallets |
+| GET | `/api/staking/validators` | No | All bonded Neutaro validators |
+| GET | `/api/staking/validator-health/:addr` | Yes | 7-day validator snapshot history |
+| GET | `/api/neutaro/nfts` | Yes | NFTs across all linked wallets |
 
 ## Data Storage
 
 SQLite database at `data/nodewatch.db` (or Docker volume `nodewatch-data`).
 
 Tables:
-- **users** — wallet addresses + login timestamps
-- **nodes** — registered nodes with type, host, port, GUID
+- **users** — id, google_id, email, display_name, timestamps
+- **wallets** — linked Neutaro addresses per user (verified or manual)
+- **nodes** — registered nodes with type, host, port, GUID (owned by user)
 - **checks** — health check results with timestamp, status, latency
+- **validator_snapshots** — periodic validator health records (status, jailed, uptime, missed blocks)
 
-## Production Deployment
+## HTTPS
 
-For production with HTTPS, put NodeWatch behind a reverse proxy:
+HTTPS is built in via Caddy. When you set `DOMAIN=nodewatch.clawpurse.ai` in `.env`, Caddy automatically:
 
-```nginx
-server {
-    listen 443 ssl;
-    server_name nodewatch.clawpurse.ai;
+1. Provisions a Let's Encrypt TLS certificate
+2. Redirects HTTP (port 80) to HTTPS (port 443)
+3. Enables HTTP/3 (QUIC)
+4. Adds security headers (HSTS, X-Frame-Options, etc.)
+5. Renews the certificate before expiry
 
-    ssl_certificate /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
+**Requirements:**
+- Ports 80 and 443 must be open on the server
+- DNS A record for your domain must point to the server's IP
+- First cert provisioning takes ~10-30 seconds
 
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
+For local development, `DOMAIN=localhost` uses Caddy's internal CA (self-signed).
 
 ## License
 

@@ -19,7 +19,8 @@
     "cors": "^2.8.5",
     "@cosmjs/amino": "^0.32.4",
     "@cosmjs/crypto": "^0.32.4",
-    "@cosmjs/encoding": "^0.32.4"
+    "@cosmjs/encoding": "^0.32.4",
+    "google-auth-library": "^9.14.0"
   },
   "engines": {
     "node": ">=20"
