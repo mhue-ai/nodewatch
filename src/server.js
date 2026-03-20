@@ -192,6 +192,22 @@ function createSession(userId) {
   return token;
 }
 
+function mergeWalletOnlyUserInto(targetUserId, sourceUserId) {
+  if (!sourceUserId || sourceUserId === targetUserId) return false;
+  const sourceUser = db.prepare('SELECT * FROM users WHERE id=?').get(sourceUserId);
+  if (!sourceUser) return false;
+  const isWalletOnly = !sourceUser.google_id && !sourceUser.email;
+  if (!isWalletOnly) return false;
+
+  db.transaction(() => {
+    db.prepare('UPDATE wallets SET user_id=? WHERE user_id=?').run(targetUserId, sourceUserId);
+    db.prepare('UPDATE nodes SET user_id=? WHERE user_id=?').run(targetUserId, sourceUserId);
+    db.prepare('DELETE FROM users WHERE id=?').run(sourceUserId);
+  })();
+
+  return true;
+}
+
 // Expose Google Client ID to frontend
 app.get('/api/auth/config', (_, res) => {
   res.json({ google_client_id: GOOGLE_CLIENT_ID || null });
@@ -301,8 +317,18 @@ app.post('/api/wallets/keplr', auth, async (req, res) => {
 
   // Check if wallet is already linked to another user
   const existing = db.prepare('SELECT * FROM wallets WHERE address=?').get(address);
-  if (existing && existing.user_id !== req.userId) return res.status(409).json({ error: 'Wallet already linked to another account' });
-  if (existing) return res.json(existing); // already linked to this user
+  if (existing && existing.user_id !== req.userId) {
+    const merged = mergeWalletOnlyUserInto(req.userId, existing.user_id);
+    if (!merged) return res.status(409).json({ error: 'Wallet already linked to another account' });
+    if (label) db.prepare('UPDATE wallets SET label=?, verified=1 WHERE address=?').run(label, address);
+    else db.prepare('UPDATE wallets SET verified=1 WHERE address=?').run(address);
+    return res.json(db.prepare('SELECT * FROM wallets WHERE address=?').get(address));
+  }
+  if (existing) {
+    if (label) db.prepare('UPDATE wallets SET label=?, verified=1 WHERE address=?').run(label, address);
+    else db.prepare('UPDATE wallets SET verified=1 WHERE address=?').run(address);
+    return res.json(db.prepare('SELECT * FROM wallets WHERE address=?').get(address));
+  }
 
   try {
     db.prepare('INSERT INTO wallets (user_id, address, label, verified) VALUES (?,?,?,1)').run(req.userId, address, label || '');

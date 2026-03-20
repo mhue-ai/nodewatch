@@ -294,8 +294,11 @@ async function apiFetch(p,o={}){
   const h={'Content-Type':'application/json',...(o.headers||{})};
   if(authToken) h['x-auth-token']=authToken;
   const r=await fetch(API+p,{...o,headers:h});
+  let data=null;
+  try{data=await r.json();}catch(_){data=null;}
   if(r.status===401){disconnect();throw new Error('Session expired');}
-  return r.json();
+  if(!r.ok){throw new Error(data?.error||`Request failed (${r.status})`);}
+  return data;
 }
 
 // ── Auth ────────────────────────────────────────
