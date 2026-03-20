@@ -107,6 +107,7 @@ body{background:var(--bg-void);color:var(--text-1);font-family:var(--font-body);
 .metric{text-align:center}.metric-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:3px}.metric-val{font-family:var(--font-mono);font-size:15px;font-weight:600}
 .uptime-bar{display:flex;gap:1px;margin-top:10px;height:16px;border-radius:3px;overflow:hidden}
 .up-seg{flex:1;min-width:2px;border-radius:1px}.up-seg.up{background:var(--accent-mint);opacity:.5}.up-seg.down{background:var(--accent-402);opacity:.7}.up-seg.unknown{background:var(--border-1);opacity:.3}
+.blocks-grid{display:flex;flex-direction:column;gap:10px}.blocks-row{display:grid;grid-template-columns:180px 1fr;gap:10px;align-items:center}.blocks-label{font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.blocks-strip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(6px,1fr);gap:2px;height:18px}.block-cell{border-radius:2px;background:var(--border-1);opacity:.4}.block-cell.up{background:var(--accent-mint);opacity:1}.block-cell.down{background:var(--accent-402);opacity:1}.block-cell.unknown{background:#4b5563;opacity:.7}
 .node-foot{margin-top:12px;padding-top:10px;border-top:1px solid var(--border-1);display:flex;justify-content:space-between;align-items:center;font-family:var(--font-mono);font-size:10px;color:var(--text-3)}
 .node-actions{display:flex;gap:6px}
 
@@ -255,9 +256,10 @@ footer.site-footer a:hover{text-decoration:underline}
     </div>
     <div id="tab-charts" style="display:none">
       <div class="charts-grid">
-        <div class="chart-card"><div class="chart-title">Uptime % (24h)</div><div class="chart-container"><canvas id="chart-uptime"></canvas></div></div>
-        <div class="chart-card"><div class="chart-title">Response latency (ms)</div><div class="chart-container"><canvas id="chart-latency"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">All node uptime lines (24h)</div><div class="chart-container"><canvas id="chart-uptime"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">All node latency lines (24h)</div><div class="chart-container"><canvas id="chart-latency"></canvas></div></div>
       </div>
+      <div class="chart-card" style="margin-top:18px"><div class="chart-title">24h up/down blocks</div><div id="chart-blocks"></div></div>
     </div>
     <div id="tab-events" style="display:none">
       <div class="event-list" id="event-list"></div>
@@ -418,12 +420,13 @@ async function removeWallet(id,a){if(!confirm(`Remove wallet ${a}?`))return;awai
 
 // ── Charts ─────────────────────────────────────
 function renderCharts(){if(!historyData?.length)return;
-const o=(yL,yMn,yMx)=>({responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom',labels:{color:'#8b8f9e',font:{family:"'JetBrains Mono',monospace",size:10},boxWidth:10,padding:12}},tooltip:{backgroundColor:'#13161d',titleColor:'#e2e4ea',bodyColor:'#8b8f9e',borderColor:'rgba(30,34,48,.8)',borderWidth:1,padding:8}},scales:{x:{grid:{color:'rgba(30,34,48,.3)'},ticks:{color:'#5c6070',font:{family:"'JetBrains Mono',monospace",size:9},maxTicksLimit:8}},y:{min:yMn,max:yMx,grid:{color:'rgba(30,34,48,.3)'},ticks:{color:'#5c6070',font:{family:"'JetBrains Mono',monospace",size:9}}}}});
-const lb=historyData[0]?.checks.filter((_,i)=>i%6===0).map(c=>fmtTime(c.checked_at))||[];
+const o=(yL,yMn,yMx)=>({responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom',labels:{color:'#8b8f9e',font:{family:"'JetBrains Mono',monospace",size:10},boxWidth:10,padding:12}},tooltip:{backgroundColor:'#13161d',titleColor:'#e2e4ea',bodyColor:'#8b8f9e',borderColor:'rgba(30,34,48,.8)',borderWidth:1,padding:8}},scales:{x:{grid:{color:'rgba(30,34,48,.3)'},ticks:{color:'#5c6070',font:{family:"'JetBrains Mono',monospace",size:9},maxTicksLimit:12}},y:{min:yMn,max:yMx,grid:{color:'rgba(30,34,48,.3)'},ticks:{color:'#5c6070',font:{family:"'JetBrains Mono',monospace",size:9}}}}});
+const maxLen=Math.max(...historyData.map(n=>n.checks?.length||0),0);if(!maxLen)return;const labels=Array.from({length:maxLen},(_,i)=>{const sample=historyData.find(n=>n.checks?.[i])?.checks?.[i];return sample?fmtTime(sample.checked_at):'';});
 const c1=document.getElementById('chart-uptime').getContext('2d');if(uptimeChart)uptimeChart.destroy();
-uptimeChart=new Chart(c1,{type:'line',data:{labels:lb,datasets:historyData.map(n=>{const s=n.checks.filter((_,i)=>i%6===0);return{label:n.name,data:s.map((_,si)=>{const w=n.checks.slice(Math.max(0,si*6-6),si*6+1);return Math.round(w.filter(c=>c.status==='up').length/Math.max(1,w.length)*100);}),borderColor:NC[n.type]?.c||'#888',borderWidth:1.5,pointRadius:0,tension:.3,fill:false};})},options:o('Uptime %',0,105)});
+uptimeChart=new Chart(c1,{type:'line',data:{labels,datasets:historyData.map(n=>({label:n.name,data:Array.from({length:maxLen},(_,i)=>{const check=n.checks?.[i];return check?check.status==='up'?100:0:null;}),borderColor:NC[n.type]?.c||'#888',backgroundColor:NC[n.type]?.c||'#888',borderWidth:1.5,pointRadius:0,tension:0,fill:false,spanGaps:true}))},options:o('Status',-5,105)});
 const c2=document.getElementById('chart-latency').getContext('2d');if(latencyChart)latencyChart.destroy();
-latencyChart=new Chart(c2,{type:'line',data:{labels:lb,datasets:historyData.map(n=>{const s=n.checks.filter((_,i)=>i%6===0);return{label:n.name,data:s.map(c=>c.latency_ms>0?c.latency_ms:null),borderColor:NC[n.type]?.c||'#888',borderWidth:1.5,pointRadius:0,tension:.3,fill:false,spanGaps:true};})},options:o('ms')});}
+latencyChart=new Chart(c2,{type:'line',data:{labels,datasets:historyData.map(n=>({label:n.name,data:Array.from({length:maxLen},(_,i)=>{const check=n.checks?.[i];return check&&check.latency_ms>0?check.latency_ms:null;}),borderColor:NC[n.type]?.c||'#888',backgroundColor:NC[n.type]?.c||'#888',borderWidth:1.5,pointRadius:0,tension:.2,fill:false,spanGaps:true}))},options:o('ms')});
+const blocks=document.getElementById('chart-blocks');blocks.innerHTML=`<div class="blocks-grid">${historyData.map(n=>{const cells=Array.from({length:maxLen},(_,i)=>{const check=n.checks?.[i];const cls=check?check.status:'unknown';const title=check?`${n.name} · ${fmtDateTime(check.checked_at)} · ${check.status}`:`${n.name} · no data`;return `<div class="block-cell ${cls}" title="${escapeHtml(title)}"></div>`;}).join('');return `<div class="blocks-row"><div class="blocks-label">${escapeHtml(n.name)}</div><div class="blocks-strip">${cells}</div></div>`;}).join('')}</div>`;}
 
 // ── Events ─────────────────────────────────────
 function renderEvents(){const list=document.getElementById('event-list');if(!historyData?.length){list.innerHTML='<div class="event-row"><span style="color:var(--text-3)">No history yet</span></div>';return;}
