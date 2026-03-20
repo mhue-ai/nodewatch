@@ -180,6 +180,9 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     node_id INTEGER NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
     checked_at TEXT DEFAULT (datetime('now')),
+    service_name TEXT DEFAULT 'Primary service',
+    endpoint_port INTEGER,
+    required INTEGER DEFAULT 1,
     status TEXT NOT NULL CHECK(status IN ('up','down')),
     latency_ms INTEGER DEFAULT -1, error TEXT
   );
@@ -215,6 +218,9 @@ if (!columnExists('nodes', 'draft')) db.exec('ALTER TABLE nodes ADD COLUMN draft
 if (!columnExists('nodes', 'source_wallet_id')) db.exec('ALTER TABLE nodes ADD COLUMN source_wallet_id INTEGER REFERENCES wallets(id) ON DELETE SET NULL');
 if (!columnExists('nodes', 'service_name')) db.exec("ALTER TABLE nodes ADD COLUMN service_name TEXT DEFAULT 'Primary service'");
 if (!columnExists('nodes', 'extra_services_json')) db.exec("ALTER TABLE nodes ADD COLUMN extra_services_json TEXT DEFAULT '[]'");
+if (!columnExists('checks', 'service_name')) db.exec("ALTER TABLE checks ADD COLUMN service_name TEXT DEFAULT 'Primary service'");
+if (!columnExists('checks', 'endpoint_port')) db.exec("ALTER TABLE checks ADD COLUMN endpoint_port INTEGER");
+if (!columnExists('checks', 'required')) db.exec("ALTER TABLE checks ADD COLUMN required INTEGER DEFAULT 1");
 db.exec('CREATE INDEX IF NOT EXISTS idx_nodes_user_nft ON nodes(user_id, nft_id)');
 
 const decorateNodeDefinition = db.transaction(() => {
@@ -651,38 +657,86 @@ app.post('/api/nodes/:id/check-now', auth, async (req, res) => {
   }
 
   manualNodeChecks.set(key, now);
-  try {
-    const result = await runSingleNodeCheck(node);
-    const latest = db.prepare('SELECT * FROM checks WHERE node_id=? ORDER BY checked_at DESC LIMIT 1').get(node.id);
-    res.json({ ok: true, node_id: node.id, result, checked_at: latest?.checked_at || new Date().toISOString() });
-  } catch (e) {
-    persistNodeCheck(node.id, { status: 'down', latency_ms: -1, error: e.message });
-    const latest = db.prepare('SELECT * FROM checks WHERE node_id=? ORDER BY checked_at DESC LIMIT 1').get(node.id);
-    res.json({ ok: true, node_id: node.id, result: { status: 'down', latency_ms: -1, error: e.message }, checked_at: latest?.checked_at || new Date().toISOString() });
-  }
+  const result = await runSingleNodeCheck(node);
+  const latest = db.prepare('SELECT * FROM checks WHERE node_id=? ORDER BY checked_at DESC LIMIT 1').get(node.id);
+  res.json({ ok: true, node_id: node.id, result, checked_at: latest?.checked_at || new Date().toISOString() });
 });
 
 // ══════════════════════════════════════════════════════════════
 // NODE STATUS & HISTORY
 // ══════════════════════════════════════════════════════════════
+function summarizeNodeHealth(nodeId) {
+  const latestServices = db.prepare(`
+    SELECT c1.* FROM checks c1
+    JOIN (
+      SELECT service_name, MAX(checked_at) AS latest_checked_at
+      FROM checks
+      WHERE node_id=?
+      GROUP BY service_name
+    ) x ON c1.service_name=x.service_name AND c1.checked_at=x.latest_checked_at
+    WHERE c1.node_id=?
+    ORDER BY c1.required DESC, c1.service_name ASC
+  `).all(nodeId, nodeId);
+  const requiredServices = latestServices.filter((service) => service.required);
+  const latestChecked = latestServices.map((service) => service.checked_at).sort().at(-1) || null;
+  const currentStatus = !requiredServices.length ? 'unknown' : requiredServices.every((service) => service.status === 'up') ? 'up' : 'down';
+  const latencyValues = requiredServices.map((service) => service.latency_ms).filter((value) => value >= 0);
+  const error = requiredServices.filter((service) => service.status !== 'up').map((service) => `${service.service_name}: ${service.error || 'down'}`).join(' · ') || null;
+
+  const groupedHistory = db.prepare(`
+    SELECT checked_at, status, required FROM checks
+    WHERE node_id=? AND checked_at>datetime('now','-1 day')
+    ORDER BY checked_at ASC
+  `).all(nodeId);
+  const byTimestamp = new Map();
+  for (const row of groupedHistory) {
+    if (!byTimestamp.has(row.checked_at)) byTimestamp.set(row.checked_at, []);
+    byTimestamp.get(row.checked_at).push(row);
+  }
+  const aggregated = [...byTimestamp.entries()].map(([checked_at, rows]) => {
+    const required = rows.filter((row) => row.required);
+    return { checked_at, status: required.every((row) => row.status === 'up') ? 'up' : 'down' };
+  });
+  const total = aggregated.length;
+  const up = aggregated.filter((row) => row.status === 'up').length;
+
+  return {
+    current_status: currentStatus,
+    latency_ms: latencyValues.length ? Math.max(...latencyValues) : -1,
+    last_checked: latestChecked,
+    uptime_24h: total ? Math.round(up / total * 100) : null,
+    error,
+    service_statuses: latestServices
+  };
+}
+
 app.get('/api/status', auth, (req, res) => {
   const nodes = db.prepare('SELECT * FROM nodes WHERE user_id=?').all(req.userId);
   res.json({ timestamp: new Date().toISOString(), nodes: nodes.map(n => {
     if (n.draft) {
-      return { ...n, current_status:'draft', latency_ms:-1, last_checked:null, uptime_24h:null, error:null };
+      return { ...n, current_status:'draft', latency_ms:-1, last_checked:null, uptime_24h:null, error:null, service_statuses:[] };
     }
-    const l = db.prepare('SELECT * FROM checks WHERE node_id=? ORDER BY checked_at DESC LIMIT 1').get(n.id);
-    const h = db.prepare(`SELECT status,COUNT(*) as cnt FROM checks WHERE node_id=? AND checked_at>datetime('now','-1 day') GROUP BY status`).all(n.id);
-    const tot=h.reduce((s,r)=>s+r.cnt,0); const up=h.find(r=>r.status==='up')?.cnt||0;
-    return { ...n, current_status:l?.status||'unknown', latency_ms:l?.latency_ms||-1, last_checked:l?.checked_at||null, uptime_24h:tot?Math.round(up/tot*100):null, error:l?.error||null };
+    return { ...n, ...summarizeNodeHealth(n.id) };
   })});
 });
 
 app.get('/api/history', auth, (req, res) => {
   const hrs = Math.min(parseInt(req.query.hours||'24'),720);
-  res.json(db.prepare('SELECT id,name,type FROM nodes WHERE user_id=?').all(req.userId).map(n => ({
-    ...n, checks: db.prepare(`SELECT checked_at,status,latency_ms FROM checks WHERE node_id=? AND checked_at>datetime('now','-${hrs} hours') ORDER BY checked_at`).all(n.id)
-  })));
+  res.json(db.prepare('SELECT id,name,type FROM nodes WHERE user_id=?').all(req.userId).map(n => {
+    const rows = db.prepare(`SELECT checked_at,status,latency_ms,required FROM checks WHERE node_id=? AND checked_at>datetime('now','-${hrs} hours') ORDER BY checked_at`).all(n.id);
+    const byTimestamp = new Map();
+    for (const row of rows) {
+      if (!byTimestamp.has(row.checked_at)) byTimestamp.set(row.checked_at, []);
+      byTimestamp.get(row.checked_at).push(row);
+    }
+    const checks = [...byTimestamp.entries()].map(([checked_at, entries]) => {
+      const required = entries.filter((entry) => entry.required);
+      const status = required.every((entry) => entry.status === 'up') ? 'up' : 'down';
+      const latencyValues = required.map((entry) => entry.latency_ms).filter((value) => value >= 0);
+      return { checked_at, status, latency_ms: latencyValues.length ? Math.max(...latencyValues) : -1 };
+    });
+    return { ...n, checks };
+  }));
 });
 
 // ══════════════════════════════════════════════════════════════
@@ -779,15 +833,51 @@ async function checkNode(host, port) {
   });
 }
 
-function persistNodeCheck(nodeId, result) {
-  db.prepare('INSERT INTO checks (node_id,status,latency_ms,error) VALUES (?,?,?,?)')
-    .run(nodeId, result.status, result.latency_ms, result.error);
+function parseExtraServices(raw) {
+  return parseJsonArray(raw).filter((service) => service && service.name && service.port);
+}
+
+function monitoredServicesForNode(node) {
+  const primary = [{
+    name: node.service_name || 'Primary service',
+    port: node.port,
+    required: true
+  }];
+  const extras = parseExtraServices(node.extra_services_json)
+    .filter((service) => service.required)
+    .map((service) => ({ name: service.name, port: service.port, required: !!service.required }));
+  return [...primary, ...extras].filter((service) => service.port);
+}
+
+function persistNodeCheck(nodeId, service, result) {
+  db.prepare('INSERT INTO checks (node_id,service_name,endpoint_port,required,status,latency_ms,error) VALUES (?,?,?,?,?,?,?)')
+    .run(nodeId, service.name || 'Primary service', service.port || null, service.required ? 1 : 0, result.status, result.latency_ms, result.error);
 }
 
 async function runSingleNodeCheck(node) {
-  const result = await checkNode(node.host, node.port);
-  persistNodeCheck(node.id, result);
-  return result;
+  const services = monitoredServicesForNode(node);
+  const results = [];
+  for (const service of services) {
+    try {
+      const result = await checkNode(node.host, service.port);
+      persistNodeCheck(node.id, service, result);
+      results.push({ ...service, ...result });
+    } catch (e) {
+      const result = { status: 'down', latency_ms: -1, error: e.message };
+      persistNodeCheck(node.id, service, result);
+      results.push({ ...service, ...result });
+    }
+  }
+  const required = results.filter((service) => service.required);
+  const currentStatus = required.every((service) => service.status === 'up') ? 'up' : 'down';
+  const latencyValues = required.map((service) => service.latency_ms).filter((value) => value >= 0);
+  const error = required.filter((service) => service.status !== 'up').map((service) => `${service.name}: ${service.error || 'down'}`).join(' · ') || null;
+  return {
+    status: currentStatus,
+    latency_ms: latencyValues.length ? Math.max(...latencyValues) : -1,
+    error,
+    service_results: results
+  };
 }
 
 async function runHealthChecks() {
@@ -795,11 +885,7 @@ async function runHealthChecks() {
   if (!nodes.length) return;
   console.log(`[health] Checking ${nodes.length} nodes...`);
   for (const n of nodes) {
-    try {
-      await runSingleNodeCheck(n);
-    } catch (e) {
-      persistNodeCheck(n.id, { status: 'down', latency_ms: -1, error: e.message });
-    }
+    await runSingleNodeCheck(n);
   }
   db.prepare(`DELETE FROM checks WHERE checked_at<datetime('now','-${HISTORY_DAYS} days')`).run();
   const up = db.prepare(`SELECT COUNT(DISTINCT node_id) as c FROM checks c JOIN (SELECT node_id,MAX(checked_at) as l FROM checks GROUP BY node_id) x ON c.node_id=x.node_id AND c.checked_at=x.l WHERE c.status='up'`).get();
