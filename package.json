@@ -1,0 +1,27 @@
+{
+  "name": "timpi-nodewatch",
+  "version": "1.0.0",
+  "description": "Timpi Node Monitoring Dashboard — Keplr wallet auth, NFT discovery, live health checks",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mhue-ai/nodewatch.git"
+  },
+  "homepage": "https://nodewatch.clawpurse.ai",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "better-sqlite3": "^11.6.0",
+    "node-cron": "^3.0.3",
+    "cors": "^2.8.5",
+    "@cosmjs/amino": "^0.32.4",
+    "@cosmjs/crypto": "^0.32.4",
+    "@cosmjs/encoding": "^0.32.4"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

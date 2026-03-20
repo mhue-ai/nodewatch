@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timpi NodeWatch — Monitor Your Timpi Nodes & Staking Validators | ClawPurse</title>
+<meta name="description" content="Real-time monitoring dashboard for Timpi network nodes. Connect your Keplr wallet to track Guardian, Synaptron, Collector, and GeoCore node health, uptime, latency, staking delegations, and validator performance on the Neutaro blockchain.">
+<meta name="keywords" content="Timpi, NodeWatch, node monitor, Neutaro, NTMPI, Guardian node, Synaptron, Collector, GeoCore, Keplr wallet, staking, validator health, DePIN, ClawPurse, TAP network, decentralized search, uptime monitoring, blockchain nodes">
+<meta name="author" content="ClawPurse">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://nodewatch.clawpurse.ai/">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://nodewatch.clawpurse.ai/">
+<meta property="og:title" content="Timpi NodeWatch — Node & Validator Monitoring Dashboard">
+<meta property="og:description" content="Connect your Keplr wallet to monitor Timpi node health, uptime, latency, staking delegations, and validator performance on the Neutaro blockchain.">
+<meta property="og:site_name" content="Timpi NodeWatch">
+<meta property="og:locale" content="en_US">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Timpi NodeWatch — Node & Validator Monitoring Dashboard">
+<meta name="twitter:description" content="Real-time monitoring for Timpi Guardian, Synaptron, Collector & GeoCore nodes. Track staking, rewards, and validator health on Neutaro.">
+<meta name="twitter:site" content="@ClawPurse">
+
+<!-- Structured Data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Timpi NodeWatch",
+  "url": "https://nodewatch.clawpurse.ai",
+  "description": "Real-time monitoring dashboard for Timpi network nodes and Neutaro staking validators. Track Guardian, Synaptron, Collector, and GeoCore node health, uptime, latency, staking delegations, and validator performance.",
+  "applicationCategory": "BlockchainApplication",
+  "operatingSystem": "Web",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "author": {
+    "@type": "Organization",
+    "name": "ClawPurse",
+    "url": "https://clawpurse.ai"
+  },
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "ClawPurse Ecosystem",
+    "url": "https://clawpurse.ai"
+  },
+  "keywords": ["Timpi", "node monitoring", "Neutaro", "NTMPI", "staking", "validator", "DePIN", "Keplr", "blockchain", "uptime"]
+}
+</script>
+
+<!-- Performance -->
+<link rel="dns-prefetch" href="https://fonts.googleapis.com">
+<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js" defer></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0c10;--card:#12151c;--card2:#181c26;--surf:#1a1e28;--bdr:#252a36;--bdr2:#2d3344;--t1:#e8eaf0;--t2:#8b90a0;--t3:#5a5f70;--grn:#34d399;--grn-g:rgba(52,211,153,.15);--red:#f87171;--red-g:rgba(248,113,113,.15);--amb:#fbbf24;--amb-g:rgba(251,191,36,.12);--blu:#60a5fa;--pur:#a78bfa;--teal:#2dd4bf;--mono:'JetBrains Mono',monospace;--sans:'DM Sans',system-ui,sans-serif}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--t1);font-family:var(--sans);min-height:100vh}
+body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at 20% 20%,rgba(52,211,153,.03) 0%,transparent 50%),radial-gradient(ellipse at 80% 80%,rgba(96,165,250,.03) 0%,transparent 50%);pointer-events:none;z-index:0}
+.container{position:relative;z-index:1;max-width:1280px;margin:0 auto;padding:32px 24px}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px}
+.header-left{display:flex;align-items:center;gap:14px}
+.logo{width:42px;height:42px;background:linear-gradient(135deg,var(--teal),var(--blu));border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:18px;color:#0a0c10}
+h1{font-family:var(--mono);font-size:20px;font-weight:600;letter-spacing:-.5px}
+h1 span{color:var(--t3);font-weight:400}
+.btn{font-family:var(--mono);font-size:12px;padding:8px 16px;border-radius:8px;border:1px solid var(--bdr);background:transparent;color:var(--t2);cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--bdr2);color:var(--t1)}
+.btn-primary{background:var(--teal);color:#0a0c10;border-color:var(--teal);font-weight:600}
+.btn-primary:hover{opacity:.9}
+.btn-danger{border-color:rgba(248,113,113,.3);color:var(--red)}
+.btn-sm{padding:5px 10px;font-size:11px}
+.view{display:none}.view.active{display:block}
+#connect-view{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center}
+.connect-card{background:var(--card);border:1px solid var(--bdr);border-radius:20px;padding:48px;max-width:480px}
+.connect-card h2{font-family:var(--mono);font-size:24px;font-weight:600;margin-bottom:12px}
+.connect-card p{color:var(--t2);margin-bottom:28px;line-height:1.6}
+.connect-card .btn-primary{font-size:14px;padding:12px 28px;border-radius:10px}
+.keplr-icon{width:48px;height:48px;background:linear-gradient(135deg,var(--pur),var(--blu));border-radius:12px;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;font-size:24px;color:white}
+.connect-info{font-family:var(--mono);font-size:11px;color:var(--t3);margin-top:20px}
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+.summary-card{background:var(--card);border:1px solid var(--bdr);border-radius:12px;padding:16px 18px}
+.summary-label{font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:1px;color:var(--t3);margin-bottom:6px}
+.summary-val{font-family:var(--mono);font-size:24px;font-weight:700;letter-spacing:-1px}
+.summary-sub{font-size:11px;color:var(--t3);margin-top:3px;font-family:var(--mono)}
+.tabs{display:flex;gap:4px;margin-bottom:24px;border-bottom:1px solid var(--bdr)}
+.tab{font-family:var(--mono);font-size:12px;padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;color:var(--t3);cursor:pointer;transition:all .2s}
+.tab:hover{color:var(--t2)}.tab.active{color:var(--teal);border-bottom-color:var(--teal)}
+.nodes-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;margin-bottom:32px}
+.node-card{background:var(--card);border:1px solid var(--bdr);border-radius:14px;padding:18px;transition:all .2s;position:relative;overflow:hidden}
+.node-card:hover{border-color:var(--bdr2);background:var(--card2);transform:translateY(-1px)}
+.node-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:14px 14px 0 0}
+.node-card.up::before{background:var(--grn)}.node-card.down::before{background:var(--red)}.node-card.unknown::before{background:var(--t3)}
+.node-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+.node-name{font-family:var(--mono);font-size:14px;font-weight:600}
+.node-badge{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.8px;padding:3px 10px;border-radius:6px;font-weight:600}
+.badge-guardian{background:rgba(96,165,250,.12);color:var(--blu)}
+.badge-synaptron{background:rgba(167,139,250,.12);color:var(--pur)}
+.badge-collector{background:rgba(251,191,36,.12);color:var(--amb)}
+.badge-geocore{background:rgba(45,212,191,.12);color:var(--teal)}
+.status-pill{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;font-weight:600;padding:3px 10px;border-radius:6px}
+.status-pill.up{background:var(--grn-g);color:var(--grn)}.status-pill.down{background:var(--red-g);color:var(--red)}.status-pill.unknown{background:rgba(90,95,112,.15);color:var(--t3)}
+.status-dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+.status-pill.up .status-dot{background:var(--grn)}.status-pill.down .status-dot{background:var(--red)}
+.node-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+.metric{text-align:center}.metric-label{font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px;color:var(--t3);margin-bottom:3px}.metric-val{font-family:var(--mono);font-size:15px;font-weight:600}
+.uptime-bar{display:flex;gap:1px;margin-top:10px;height:16px;border-radius:3px;overflow:hidden}
+.up-seg{flex:1;min-width:2px;border-radius:1px}.up-seg.up{background:var(--grn);opacity:.5}.up-seg.down{background:var(--red);opacity:.7}.up-seg.unknown{background:var(--bdr);opacity:.3}
+.node-foot{margin-top:12px;padding-top:10px;border-top:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:10px;color:var(--t3)}
+.node-actions{display:flex;gap:6px}
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:100;display:none;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--card);border:1px solid var(--bdr);border-radius:16px;padding:28px;max-width:520px;width:90%;max-height:90vh;overflow-y:auto}
+.modal h3{font-family:var(--mono);font-size:16px;font-weight:600;margin-bottom:20px;color:var(--teal)}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-family:var(--mono);font-size:11px;color:var(--t2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+.form-group input,.form-group select{width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--bdr);border-radius:8px;color:var(--t1);font-family:var(--mono);font-size:13px}
+.form-group input:focus,.form-group select:focus{outline:none;border-color:var(--teal)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+.form-hint{font-size:10px;color:var(--t3);margin-top:3px;font-family:var(--mono)}
+.section-title{font-family:var(--mono);font-size:15px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.section-title::before{content:'';width:4px;height:16px;background:var(--teal);border-radius:2px}
+.charts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(460px,1fr));gap:14px;margin-bottom:32px}
+.chart-card{background:var(--card);border:1px solid var(--bdr);border-radius:14px;padding:18px}
+.chart-title{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--t2);margin-bottom:14px}
+.chart-container{position:relative;height:200px}
+.event-list{background:var(--card);border:1px solid var(--bdr);border-radius:14px;overflow:hidden;margin-bottom:32px}
+.event-row{padding:10px 18px;display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11px;border-bottom:1px solid var(--bdr)}
+.event-row:last-child{border-bottom:none}
+.event-icon{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.event-icon.up{background:var(--grn)}.event-icon.down{background:var(--red)}
+.event-time{color:var(--t3);min-width:130px}.event-msg{color:var(--t2)}.event-msg strong{color:var(--t1);font-weight:600}
+
+/* ── Staking Cards ── */
+.val-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px;margin-bottom:32px}
+.val-card{background:var(--card);border:1px solid var(--bdr);border-radius:14px;padding:18px;position:relative;overflow:hidden;transition:all .2s}
+.val-card:hover{border-color:var(--bdr2);background:var(--card2)}
+.val-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:14px 14px 0 0}
+.val-card.healthy::before{background:var(--grn)}.val-card.jailed::before{background:var(--red)}.val-card.inactive::before{background:var(--amb)}
+.val-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+.val-moniker{font-family:var(--mono);font-size:14px;font-weight:600}
+.val-commission{font-family:var(--mono);font-size:11px;color:var(--t3)}
+.val-status-badge{font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:6px;font-weight:600}
+.val-status-badge.active{background:var(--grn-g);color:var(--grn)}
+.val-status-badge.jailed{background:var(--red-g);color:var(--red)}
+.val-status-badge.inactive{background:var(--amb-g);color:var(--amb)}
+.val-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.val-foot{margin-top:12px;padding-top:10px;border-top:1px solid var(--bdr);font-family:var(--mono);font-size:10px;color:var(--t3);display:flex;justify-content:space-between}
+.staking-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px}
+.rewards-highlight{color:var(--amb);font-weight:700}
+
+.nft-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-bottom:20px}
+.nft-card{background:var(--surf);border:1px solid var(--bdr);border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:all .2s}
+.nft-card:hover{border-color:var(--teal);transform:translateY(-2px)}
+.nft-card.registered{border-color:var(--grn);opacity:.6;cursor:default}
+.nft-type{font-family:var(--mono);font-size:13px;font-weight:600;margin-bottom:4px}
+.nft-id{font-family:var(--mono);font-size:10px;color:var(--t3)}
+.footer{text-align:center;padding:24px;font-family:var(--mono);font-size:11px;color:var(--t3);border-top:1px solid var(--bdr)}
+.footer a{color:var(--teal);text-decoration:none}
+.footer a:hover{text-decoration:underline}
+.footer nav{font-size:11px}
+.empty-state{text-align:center;padding:60px 20px;color:var(--t3);font-family:var(--mono);font-size:13px}
+.empty-state p{margin-bottom:16px}
+.pulse{width:8px;height:8px;border-radius:50%;background:var(--grn);animation:pulse 2s ease-in-out infinite;display:inline-block}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(52,211,153,.4)}50%{opacity:.7;box-shadow:0 0 0 6px rgba(52,211,153,0)}}
+.addr-display{font-family:var(--mono);font-size:11px;color:var(--t2);background:var(--surf);padding:4px 10px;border-radius:6px}
+@media(max-width:768px){.container{padding:16px 12px}.nodes-grid,.val-grid{grid-template-columns:1fr}.charts-grid{grid-template-columns:1fr}.summary{grid-template-columns:repeat(2,1fr)}.val-metrics{grid-template-columns:repeat(2,1fr)}.form-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<noscript>
+  <div style="max-width:800px;margin:40px auto;padding:20px;font-family:sans-serif;color:#333">
+    <h1>Timpi NodeWatch — Node & Validator Monitoring Dashboard</h1>
+    <p>Timpi NodeWatch is a real-time monitoring dashboard for the Timpi decentralized search network, built by the ClawPurse ecosystem on the Neutaro blockchain.</p>
+    <h2>Features</h2>
+    <ul>
+      <li>Keplr wallet authentication — sign in with your Neutaro wallet, no passwords needed</li>
+      <li>Automatic NFT discovery — detects Guardian, Synaptron, Collector, and GeoCore Node Access NFTs</li>
+      <li>Node health monitoring — real-time up/down status, latency tracking, 24-hour uptime percentage</li>
+      <li>Staking dashboard — view your NTMPI delegations, pending rewards, and validator performance</li>
+      <li>Validator health tracking — monitor jailed status, missed blocks, uptime, and commission rates</li>
+      <li>Trend charts — 24-hour rolling uptime and latency graphs per node</li>
+      <li>Event log — automatic detection of node state changes and jailed validators</li>
+    </ul>
+    <h2>Supported Timpi Node Types</h2>
+    <ul>
+      <li><strong>Guardian</strong> — Distributed storage nodes that archive the web, safeguarding data collected by Collectors</li>
+      <li><strong>Synaptron</strong> — AI-powered nodes that structure information and process images for the decentralized web index</li>
+      <li><strong>Collector</strong> — Decentralized workers that crawl the web collecting information about websites</li>
+      <li><strong>GeoCore</strong> — Coordination nodes that bridge Collectors, Guardians, and Synaptron nodes</li>
+    </ul>
+    <h2>Part of the ClawPurse Ecosystem</h2>
+    <p>NodeWatch joins ClawPurse Wallet, ClawPurse Gateway, Timpi Drip Faucet, and Basis Timpi as tools built on the Neutaro (Cosmos SDK) blockchain for the Timpi TAP network.</p>
+    <p>JavaScript is required to use this application. Please enable JavaScript to connect your Keplr wallet and access the monitoring dashboard.</p>
+  </div>
+</noscript>
+<div class="container">
+  <div class="header">
+    <div class="header-left"><div class="logo">N</div><h1>Timpi NodeWatch <span>/ monitor</span></h1></div>
+    <div id="header-right"></div>
+  </div>
+  <div class="view active" id="connect-view">
+    <div class="connect-card">
+      <div class="keplr-icon">K</div>
+      <h2>Connect your wallet</h2>
+      <p>Sign in with your Keplr wallet to discover your Timpi Node Access NFTs, monitor your nodes, and track your staking validators.</p>
+      <button class="btn btn-primary" onclick="connectWallet()">Connect Keplr Wallet</button>
+      <div class="connect-info">Requires Keplr browser extension with Neutaro chain</div>
+    </div>
+  </div>
+  <div class="view" id="dashboard-view">
+    <div class="summary" id="summary-bar"></div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('nodes',this)">Nodes</button>
+      <button class="tab" onclick="switchTab('staking',this)">Staking</button>
+      <button class="tab" onclick="switchTab('charts',this)">Trends</button>
+      <button class="tab" onclick="switchTab('events',this)">Events</button>
+    </div>
+    <div id="tab-nodes">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div id="filter-bar" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+        <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ Add node</button>
+      </div>
+      <div class="nodes-grid" id="nodes-grid"></div>
+    </div>
+    <div id="tab-staking" style="display:none">
+      <div class="staking-summary" id="staking-summary"></div>
+      <div class="section-title">Your validators</div>
+      <div class="val-grid" id="val-grid"></div>
+    </div>
+    <div id="tab-charts" style="display:none">
+      <div class="charts-grid">
+        <div class="chart-card"><div class="chart-title">Uptime % (24h rolling)</div><div class="chart-container"><canvas id="chart-uptime"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">Response latency (ms)</div><div class="chart-container"><canvas id="chart-latency"></canvas></div></div>
+      </div>
+    </div>
+    <div id="tab-events" style="display:none">
+      <div class="event-list" id="event-list"></div>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="node-modal">
+  <div class="modal">
+    <h3 id="modal-title">Register node</h3>
+    <div id="nft-discovery" style="display:none;margin-bottom:20px">
+      <div class="section-title" style="font-size:12px">Discovered NFTs</div>
+      <div class="nft-grid" id="nft-grid"></div>
+    </div>
+    <form id="node-form" onsubmit="return saveNode(event)">
+      <input type="hidden" id="f-id">
+      <div class="form-row"><div class="form-group"><label>Node name</label><input id="f-name" placeholder="Guardian-1" required></div><div class="form-group"><label>Type</label><select id="f-type" required><option value="">Select...</option><option value="guardian">Guardian</option><option value="synaptron">Synaptron</option><option value="collector">Collector</option><option value="geocore">GeoCore</option></select></div></div>
+      <div class="form-row"><div class="form-group"><label>Host / IP</label><input id="f-host" placeholder="192.168.1.10" required></div><div class="form-group"><label>Port</label><input id="f-port" type="number" placeholder="4005" required><div class="form-hint">Guardian=4005 Synaptron=5005 Collector=37566 GeoCore=4013</div></div></div>
+      <div class="form-row"><div class="form-group"><label>GUID</label><input id="f-guid" placeholder="From registration"></div><div class="form-group"><label>NFT ID</label><input id="f-nft" placeholder="Auto-filled from NFT"></div></div>
+      <div class="form-actions"><button type="button" class="btn" onclick="closeModal()">Cancel</button><button type="submit" class="btn btn-primary">Save node</button></div>
+    </form>
+  </div>
+</div>
+<footer class="footer">
+  <nav aria-label="Ecosystem links" style="margin-bottom:8px">
+    <a href="https://nodewatch.clawpurse.ai">NodeWatch</a> &middot;
+    <a href="https://gateway.clawpurse.ai">Gateway</a> &middot;
+    <a href="https://clawpurse.ai">ClawPurse Wallet</a> &middot;
+    <a href="https://neutaro.com">Neutaro Chain</a> &middot;
+    <a href="https://timpi.io">Timpi</a> &middot;
+    <a href="https://github.com/mhue-ai/nodewatch">GitHub</a>
+  </nav>
+  <span>Timpi NodeWatch — Real-time node &amp; validator monitoring for the TAP network &middot; ClawPurse Ecosystem &middot; Neutaro Blockchain</span>
+</footer>
+
+<script>
+const API='';
+const NEUTARO_CHAIN={chainId:'Neutaro-1',chainName:'Neutaro',rpc:'https://rpc.neutaro.tech',rest:'https://api.neutaro.tech',bip44:{coinType:118},bech32Config:{bech32PrefixAccAddr:'neutaro',bech32PrefixAccPub:'neutaropub',bech32PrefixValAddr:'neutarovaloper',bech32PrefixValPub:'neutarovaloperpub',bech32PrefixConsAddr:'neutarovalcons',bech32PrefixConsPub:'neutarovalconspub'},currencies:[{coinDenom:'NTMPI',coinMinimalDenom:'uneutaro',coinDecimals:6}],feeCurrencies:[{coinDenom:'NTMPI',coinMinimalDenom:'uneutaro',coinDecimals:6,gasPriceStep:{low:.01,average:.025,high:.04}}],stakeCurrency:{coinDenom:'NTMPI',coinMinimalDenom:'uneutaro',coinDecimals:6}};
+const NC={guardian:{c:'#60a5fa'},synaptron:{c:'#a78bfa'},collector:{c:'#fbbf24'},geocore:{c:'#2dd4bf'}};
+let authToken=localStorage.getItem('nw_token'), userAddr=localStorage.getItem('nw_addr');
+let statusData=null, historyData=null, stakingData=null;
+let uptimeChart=null, latencyChart=null, activeFilter='all', refreshTimer=null;
+
+// ── Helpers ────────────────────────────────────────
+function fmtTime(iso){return new Date(iso+'Z').toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false})}
+function fmtDateTime(iso){const d=new Date(iso+'Z');return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false})}
+function fmtNTMPI(u){return (parseInt(u||'0')/1e6).toFixed(2)}
+function fmtPct(r){return (parseFloat(r||'0')*100).toFixed(1)}
+
+async function apiFetch(p,o={}){
+  const h={'Content-Type':'application/json',...(o.headers||{})};
+  if(authToken) h['x-auth-token']=authToken;
+  const r=await fetch(API+p,{...o,headers:h});
+  if(r.status===401){disconnect();throw new Error('Session expired');}
+  return r.json();
+}
+
+// ── Auth ────────────────────────────────────────────
+async function connectWallet(){
+  if(!window.keplr){alert('Install Keplr wallet extension first.\nhttps://www.keplr.app/');return;}
+  try{
+    try{await window.keplr.experimentalSuggestChain(NEUTARO_CHAIN)}catch(e){}
+    await window.keplr.enable(NEUTARO_CHAIN.chainId);
+    const key=await window.keplr.getKey(NEUTARO_CHAIN.chainId);
+    const{message}=await apiFetch('/api/auth/challenge');
+    const sig=await window.keplr.signArbitrary(NEUTARO_CHAIN.chainId,key.bech32Address,message);
+    const auth=await apiFetch('/api/auth/verify',{method:'POST',body:JSON.stringify({address:key.bech32Address,signature:sig.signature,pub_key:sig.pub_key.value,message})});
+    authToken=auth.token;userAddr=auth.address;
+    localStorage.setItem('nw_token',authToken);localStorage.setItem('nw_addr',userAddr);
+    showDashboard();
+  }catch(e){alert('Failed: '+e.message);}
+}
+function disconnect(){authToken=null;userAddr=null;localStorage.removeItem('nw_token');localStorage.removeItem('nw_addr');clearInterval(refreshTimer);showConnect();}
+function showConnect(){document.getElementById('connect-view').classList.add('active');document.getElementById('dashboard-view').classList.remove('active');document.getElementById('header-right').innerHTML='';}
+async function showDashboard(){
+  document.getElementById('connect-view').classList.remove('active');
+  document.getElementById('dashboard-view').classList.add('active');
+  document.getElementById('header-right').innerHTML=`<div style="display:flex;align-items:center;gap:12px"><span class="pulse"></span><span class="addr-display">${userAddr.slice(0,12)}...${userAddr.slice(-6)}</span><button class="btn btn-sm" onclick="disconnect()">Disconnect</button></div>`;
+  await refresh();
+  refreshTimer=setInterval(refresh,60000);
+}
+async function refresh(){
+  try{
+    [statusData,historyData,stakingData]=await Promise.all([
+      apiFetch('/api/status'),
+      apiFetch('/api/history?hours=24'),
+      apiFetch('/api/staking/my-validators')
+    ]);
+    render();
+  }catch(e){console.error('Refresh:',e);}
+}
+function render(){renderSummary();renderFilters();renderNodes();renderStaking();renderCharts();renderEvents();}
+
+// ── Summary (now includes staking) ─────────────────
+function renderSummary(){
+  const nodes=statusData.nodes, up=nodes.filter(n=>n.current_status==='up').length, down=nodes.length-up;
+  const lats=nodes.filter(n=>n.latency_ms>0).map(n=>n.latency_ms);
+  const avgLat=lats.length?Math.round(lats.reduce((a,b)=>a+b,0)/lats.length):0;
+  const dels=stakingData?.delegations||[];
+  const totalStaked=dels.reduce((s,d)=>s+parseInt(d.delegated_amount||'0'),0);
+  const totalRewards=parseFloat(stakingData?.total_pending_rewards||'0');
+  const jailedCount=dels.filter(d=>d.jailed).length;
+
+  document.getElementById('summary-bar').innerHTML=`
+    <div class="summary-card"><div class="summary-label">Nodes</div><div class="summary-val" style="color:${down===0?'var(--grn)':'var(--red)'}">${up}/${nodes.length}</div><div class="summary-sub">${down===0?'All operational':down+' down'}</div></div>
+    <div class="summary-card"><div class="summary-label">Avg latency</div><div class="summary-val" style="color:${avgLat<100?'var(--grn)':avgLat<300?'var(--amb)':'var(--red)'}">${avgLat}<span style="font-size:12px;color:var(--t3)">ms</span></div></div>
+    <div class="summary-card"><div class="summary-label">Staked</div><div class="summary-val" style="color:var(--blu)">${fmtNTMPI(totalStaked)}</div><div class="summary-sub">NTMPI across ${dels.length} validator${dels.length!==1?'s':''}</div></div>
+    <div class="summary-card"><div class="summary-label">Rewards</div><div class="summary-val rewards-highlight">${fmtNTMPI(totalRewards)}</div><div class="summary-sub">NTMPI pending</div></div>
+    <div class="summary-card"><div class="summary-label">Validators</div><div class="summary-val" style="color:${jailedCount?'var(--red)':'var(--grn)'}">${dels.length}</div><div class="summary-sub">${jailedCount?jailedCount+' jailed!':'All healthy'}</div></div>`;
+}
+
+// ── Filters & Nodes (unchanged logic) ──────────────
+function renderFilters(){
+  const types=[...new Set(statusData.nodes.map(n=>n.type))];
+  let h=`<button class="btn btn-sm ${activeFilter==='all'?'btn-primary':''}" onclick="setFilter('all')">All (${statusData.nodes.length})</button>`;
+  types.forEach(t=>{const c=statusData.nodes.filter(n=>n.type===t).length;h+=`<button class="btn btn-sm ${activeFilter===t?'btn-primary':''}" onclick="setFilter('${t}')">${t} (${c})</button>`;});
+  document.getElementById('filter-bar').innerHTML=h;
+}
+function setFilter(f){activeFilter=f;renderFilters();renderNodes();}
+
+function renderNodes(){
+  const g=document.getElementById('nodes-grid');
+  const filtered=activeFilter==='all'?statusData.nodes:statusData.nodes.filter(n=>n.type===activeFilter);
+  if(!filtered.length){g.innerHTML=`<div class="empty-state" style="grid-column:1/-1"><p>No nodes registered yet.</p><button class="btn btn-primary" onclick="openAddModal()">+ Register your first node</button></div>`;return;}
+  g.innerHTML=filtered.map(n=>{
+    const s=n.current_status;
+    const nh=historyData?.find(h=>h.id===n.id);
+    let tl='';
+    if(nh?.checks?.length){const last=nh.checks.slice(-48);tl=`<div class="uptime-bar">${last.map(c=>`<div class="up-seg ${c.status}"></div>`).join('')}</div>`;}
+    return`<div class="node-card ${s}"><div class="node-head"><div><div class="node-name">${n.name}</div><div style="margin-top:5px"><span class="node-badge badge-${n.type}">${n.type}</span></div></div><span class="status-pill ${s}"><span class="status-dot"></span>${s==='up'?'Online':s==='down'?'Offline':'Pending'}</span></div><div class="node-metrics"><div class="metric"><div class="metric-label">Latency</div><div class="metric-val">${n.latency_ms>=0?n.latency_ms+'ms':'—'}</div></div><div class="metric"><div class="metric-label">Uptime 24h</div><div class="metric-val">${n.uptime_24h!==null?n.uptime_24h+'%':'—'}</div></div><div class="metric"><div class="metric-label">GUID</div><div class="metric-val" style="font-size:10px">${n.guid?n.guid.slice(0,8)+'...':'—'}</div></div></div>${tl}<div class="node-foot"><span>${n.host}:${n.port}</span><div class="node-actions"><button class="btn btn-sm" onclick="editNode(${n.id})">Edit</button><button class="btn btn-sm btn-danger" onclick="deleteNode(${n.id},'${n.name}')">Del</button></div></div></div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════
+// STAKING TAB
+// ══════════════════════════════════════════════════
+function renderStaking(){
+  const dels=stakingData?.delegations||[];
+  const totalStaked=dels.reduce((s,d)=>s+parseInt(d.delegated_amount||'0'),0);
+  const totalRewards=parseFloat(stakingData?.total_pending_rewards||'0');
+
+  // Summary row
+  document.getElementById('staking-summary').innerHTML=`
+    <div class="summary-card"><div class="summary-label">Total delegated</div><div class="summary-val" style="color:var(--blu)">${fmtNTMPI(totalStaked)}</div><div class="summary-sub">NTMPI</div></div>
+    <div class="summary-card"><div class="summary-label">Pending rewards</div><div class="summary-val rewards-highlight">${fmtNTMPI(totalRewards)}</div><div class="summary-sub">NTMPI claimable</div></div>
+    <div class="summary-card"><div class="summary-label">Validators</div><div class="summary-val" style="color:var(--teal)">${dels.length}</div><div class="summary-sub">${dels.filter(d=>d.jailed).length?'<span style="color:var(--red)">'+dels.filter(d=>d.jailed).length+' jailed</span>':'All active'}</div></div>`;
+
+  // Validator cards
+  const vg=document.getElementById('val-grid');
+  if(!dels.length){
+    vg.innerHTML='<div class="empty-state" style="grid-column:1/-1"><p>No delegations found for this wallet.</p><p style="font-size:11px">Delegate NTMPI to validators on the Neutaro chain to see them here.</p></div>';
+    return;
+  }
+
+  vg.innerHTML=dels.map(d=>{
+    const isJailed=d.jailed;
+    const isBonded=d.status==='BOND_STATUS_BONDED';
+    const cardClass=isJailed?'jailed':isBonded?'healthy':'inactive';
+    const statusLabel=isJailed?'Jailed':isBonded?'Active':'Inactive';
+    const statusBadgeClass=isJailed?'jailed':isBonded?'active':'inactive';
+    const commission=fmtPct(d.commission_rate);
+    const rewards=fmtNTMPI(d.pending_rewards);
+    const delegated=fmtNTMPI(d.delegated_amount);
+    const totalTokens=fmtNTMPI(d.tokens);
+    const uptime=d.uptime_pct!==null?d.uptime_pct.toFixed(1)+'%':'—';
+    const missed=d.missed_blocks!==null?d.missed_blocks.toLocaleString():'—';
+
+    return`<div class="val-card ${cardClass}">
+      <div class="val-head">
+        <div>
+          <div class="val-moniker">${d.moniker}</div>
+          <div class="val-commission">${commission}% commission${d.website?` · <a href="${d.website}" target="_blank" style="color:var(--teal);text-decoration:none">${d.website.replace(/https?:\/\//,'').slice(0,25)}</a>`:''}</div>
+        </div>
+        <span class="val-status-badge ${statusBadgeClass}">${statusLabel}</span>
+      </div>
+      <div class="val-metrics">
+        <div class="metric"><div class="metric-label">My stake</div><div class="metric-val" style="color:var(--blu)">${delegated}</div></div>
+        <div class="metric"><div class="metric-label">My rewards</div><div class="metric-val rewards-highlight">${rewards}</div></div>
+        <div class="metric"><div class="metric-label">Val power</div><div class="metric-val">${totalTokens}</div></div>
+        <div class="metric"><div class="metric-label">Uptime</div><div class="metric-val" style="color:${d.uptime_pct>99?'var(--grn)':d.uptime_pct>95?'var(--amb)':'var(--red)'}">${uptime}</div></div>
+      </div>
+      <div class="val-foot">
+        <span>${d.validator_address.slice(0,20)}...${d.validator_address.slice(-6)}</span>
+        <span>Missed: ${missed} blocks</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Charts ─────────────────────────────────────────
+function renderCharts(){
+  if(!historyData?.length)return;
+  const opts=(yL,yMin,yMax)=>({responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom',labels:{color:'#8b90a0',font:{family:"'JetBrains Mono',monospace",size:10},boxWidth:10,padding:12}},tooltip:{backgroundColor:'#1a1e28',titleColor:'#e8eaf0',bodyColor:'#8b90a0',borderColor:'#252a36',borderWidth:1,padding:8}},scales:{x:{grid:{color:'#252a3633'},ticks:{color:'#5a5f70',font:{family:"'JetBrains Mono',monospace",size:9},maxTicksLimit:8}},y:{min:yMin,max:yMax,grid:{color:'#252a3633'},ticks:{color:'#5a5f70',font:{family:"'JetBrains Mono',monospace",size:9}},title:{display:true,text:yL,color:'#5a5f70',font:{family:"'JetBrains Mono',monospace",size:9}}}}});
+  const labels=historyData[0]?.checks.filter((_,i)=>i%6===0).map(c=>fmtTime(c.checked_at))||[];
+  const upDs=historyData.map(n=>{const s=n.checks.filter((_,i)=>i%6===0);return{label:n.name,data:s.map((_,si)=>{const w=n.checks.slice(Math.max(0,si*6-6),si*6+1);return Math.round(w.filter(c=>c.status==='up').length/Math.max(1,w.length)*100);}),borderColor:NC[n.type]?.c||'#888',borderWidth:1.5,pointRadius:0,tension:.3,fill:false};});
+  const latDs=historyData.map(n=>{const s=n.checks.filter((_,i)=>i%6===0);return{label:n.name,data:s.map(c=>c.latency_ms>0?c.latency_ms:null),borderColor:NC[n.type]?.c||'#888',borderWidth:1.5,pointRadius:0,tension:.3,fill:false,spanGaps:true};});
+  const c1=document.getElementById('chart-uptime').getContext('2d');if(uptimeChart)uptimeChart.destroy();uptimeChart=new Chart(c1,{type:'line',data:{labels,datasets:upDs},options:opts('Uptime %',0,105)});
+  const c2=document.getElementById('chart-latency').getContext('2d');if(latencyChart)latencyChart.destroy();latencyChart=new Chart(c2,{type:'line',data:{labels,datasets:latDs},options:opts('ms')});
+}
+
+// ── Events ─────────────────────────────────────────
+function renderEvents(){
+  const list=document.getElementById('event-list');
+  if(!historyData?.length){list.innerHTML='<div class="event-row"><span style="color:var(--t3)">No history yet</span></div>';return;}
+  const ev=[];
+  historyData.forEach(n=>{for(let i=1;i<n.checks.length;i++)if(n.checks[i].status!==n.checks[i-1].status)ev.push({time:n.checks[i].checked_at,name:n.name,to:n.checks[i].status});});
+  // Add jailed validator events
+  (stakingData?.delegations||[]).filter(d=>d.jailed).forEach(d=>ev.push({time:new Date().toISOString().replace('Z',''),name:d.moniker,to:'down',isVal:true}));
+  ev.sort((a,b)=>b.time.localeCompare(a.time));
+  const recent=ev.slice(0,30);
+  if(!recent.length){list.innerHTML='<div class="event-row"><span style="color:var(--t3)">All nodes and validators stable</span></div>';return;}
+  list.innerHTML=recent.map(e=>`<div class="event-row"><span class="event-icon ${e.to}"></span><span class="event-time">${fmtDateTime(e.time)}</span><span class="event-msg"><strong>${e.name}</strong> ${e.isVal?'validator is <span style="color:var(--red)">jailed</span>':e.to==='up'?'went <span style="color:var(--grn)">online</span>':'went <span style="color:var(--red)">offline</span>'}</span></div>`).join('');
+}
+
+// ── Tabs ───────────────────────────────────────────
+function switchTab(name,el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');
+  ['nodes','staking','charts','events'].forEach(t=>document.getElementById('tab-'+t).style.display=t===name?'block':'none');
+  if(name==='charts')renderCharts();if(name==='staking')renderStaking();
+}
+
+// ── Node CRUD ──────────────────────────────────────
+function openAddModal(pf={}){
+  document.getElementById('modal-title').textContent='Register node';
+  ['f-id','f-name','f-host','f-guid','f-nft'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-type').value=pf.type||'';
+  document.getElementById('f-port').value=pf.port||'';
+  document.getElementById('node-modal').classList.add('open');
+  discoverNFTs();
+}
+async function discoverNFTs(){
+  const g=document.getElementById('nft-grid'),s=document.getElementById('nft-discovery');
+  try{const d=await apiFetch(`/api/neutaro/nfts/${userAddr}`);
+  if(d.nfts?.length){s.style.display='block';g.innerHTML=d.nfts.map(n=>{const t=guessType(n);const reg=statusData?.nodes?.some(x=>x.nft_id===n.id);return`<div class="nft-card ${reg?'registered':''}" onclick="${reg?'':`prefillNFT('${n.id}','${t}')`}"><div class="nft-type">${t||'Node NFT'}</div><div class="nft-id">${n.id?.slice(0,16)||'?'}</div>${reg?'<div style="font-size:10px;color:var(--grn);margin-top:4px">Registered</div>':''}</div>`;}).join('');}else s.style.display='none';
+  }catch(e){s.style.display='none';}
+}
+function guessType(n){const id=(n.class_id||n.id||'').toLowerCase();if(id.includes('guardian'))return'guardian';if(id.includes('synaptron'))return'synaptron';if(id.includes('collector'))return'collector';if(id.includes('geocore')||id.includes('geo'))return'geocore';return'';}
+function prefillNFT(id,t){document.getElementById('f-nft').value=id;if(t)document.getElementById('f-type').value=t;const p={guardian:4005,synaptron:5005,collector:37566,geocore:4013};if(t&&p[t])document.getElementById('f-port').value=p[t];}
+async function saveNode(e){
+  e.preventDefault();const id=document.getElementById('f-id').value;
+  const body={name:document.getElementById('f-name').value,type:document.getElementById('f-type').value,host:document.getElementById('f-host').value,port:document.getElementById('f-port').value,guid:document.getElementById('f-guid').value,nft_id:document.getElementById('f-nft').value};
+  try{await apiFetch(id?`/api/nodes/${id}`:'/api/nodes',{method:id?'PUT':'POST',body:JSON.stringify(body)});closeModal();await refresh();}catch(e){alert('Error: '+e.message);}
+}
+async function editNode(id){const n=statusData.nodes.find(x=>x.id===id);if(!n)return;document.getElementById('modal-title').textContent='Edit node';document.getElementById('f-id').value=n.id;document.getElementById('f-name').value=n.name;document.getElementById('f-type').value=n.type;document.getElementById('f-host').value=n.host;document.getElementById('f-port').value=n.port;document.getElementById('f-guid').value=n.guid||'';document.getElementById('f-nft').value=n.nft_id||'';document.getElementById('nft-discovery').style.display='none';document.getElementById('node-modal').classList.add('open');}
+async function deleteNode(id,name){if(!confirm(`Delete "${name}"?`))return;await apiFetch(`/api/nodes/${id}`,{method:'DELETE'});await refresh();}
+function closeModal(){document.getElementById('node-modal').classList.remove('open');}
+document.getElementById('node-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
+
+// ── Init ───────────────────────────────────────────
+(async()=>{if(authToken&&userAddr){try{await apiFetch('/api/auth/session');showDashboard();}catch(e){showConnect();}}else showConnect();})();
+</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  nodewatch:
+    build: .
+    container_name: timpi-nodewatch
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - nodewatch-data:/app/data
+    environment:
+      - PORT=3000
+      - DB_PATH=/app/data/nodewatch.db
+      - CHECK_INTERVAL=${CHECK_INTERVAL:-*/5 * * * *}
+      - CHECK_TIMEOUT=${CHECK_TIMEOUT:-5000}
+      - HISTORY_DAYS=${HISTORY_DAYS:-30}
+      - NEUTARO_LCD=${NEUTARO_LCD:-https://api.neutaro.tech}
+    # If you need to check nodes on the host network, uncomment:
+    # network_mode: host
+
+volumes:
+  nodewatch-data:
+    driver: local
