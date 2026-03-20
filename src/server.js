@@ -192,11 +192,32 @@ function createSession(userId) {
   return token;
 }
 
+function getUserSummary(userId) {
+  const user = db.prepare('SELECT id, google_id, email, display_name, created_at, last_login FROM users WHERE id=?').get(userId);
+  if (!user) return null;
+  return {
+    id: user.id,
+    has_google: !!user.google_id,
+    email: user.email || null,
+    display_name: user.display_name || null,
+    created_at: user.created_at || null,
+    last_login: user.last_login || null
+  };
+}
+
+function logWalletEvent(event, details = {}) {
+  try {
+    console.log(`[wallets] ${event} ${JSON.stringify(details)}`);
+  } catch {
+    console.log(`[wallets] ${event}`);
+  }
+}
+
 function mergeWalletOnlyUserInto(targetUserId, sourceUserId) {
   if (!sourceUserId || sourceUserId === targetUserId) return false;
   const sourceUser = db.prepare('SELECT * FROM users WHERE id=?').get(sourceUserId);
   if (!sourceUser) return false;
-  const isWalletOnly = !sourceUser.google_id && !sourceUser.email;
+  const isWalletOnly = !sourceUser.google_id;
   if (!isWalletOnly) return false;
 
   db.transaction(() => {
@@ -304,6 +325,7 @@ app.get('/api/wallets', auth, (req, res) => {
 app.post('/api/wallets/keplr', auth, async (req, res) => {
   const { address, signature, pub_key, message, label } = req.body;
   if (!address || !signature || !pub_key || !message) return res.status(400).json({ error: 'Missing fields' });
+  logWalletEvent('keplr.request', { reqUserId: req.userId, address, label: label || '' });
 
   let valid = false;
   try {
@@ -318,13 +340,16 @@ app.post('/api/wallets/keplr', auth, async (req, res) => {
   // Check if wallet is already linked to another user
   const existing = db.prepare('SELECT * FROM wallets WHERE address=?').get(address);
   if (existing && existing.user_id !== req.userId) {
+    logWalletEvent('keplr.conflict', { reqUserId: req.userId, existingWallet: existing, existingUser: getUserSummary(existing.user_id) });
     const merged = mergeWalletOnlyUserInto(req.userId, existing.user_id);
     if (!merged) return res.status(409).json({ error: 'Wallet already linked to another account' });
+    logWalletEvent('keplr.merged', { reqUserId: req.userId, fromUserId: existing.user_id, address });
     if (label) db.prepare('UPDATE wallets SET label=?, verified=1 WHERE address=?').run(label, address);
     else db.prepare('UPDATE wallets SET verified=1 WHERE address=?').run(address);
     return res.json(db.prepare('SELECT * FROM wallets WHERE address=?').get(address));
   }
   if (existing) {
+    logWalletEvent('keplr.already-linked', { reqUserId: req.userId, wallet: existing });
     if (label) db.prepare('UPDATE wallets SET label=?, verified=1 WHERE address=?').run(label, address);
     else db.prepare('UPDATE wallets SET verified=1 WHERE address=?').run(address);
     return res.json(db.prepare('SELECT * FROM wallets WHERE address=?').get(address));
@@ -332,8 +357,13 @@ app.post('/api/wallets/keplr', auth, async (req, res) => {
 
   try {
     db.prepare('INSERT INTO wallets (user_id, address, label, verified) VALUES (?,?,?,1)').run(req.userId, address, label || '');
-    res.status(201).json(db.prepare('SELECT * FROM wallets WHERE address=?').get(address));
-  } catch (e) { res.status(409).json({ error: 'Wallet already exists' }); }
+    const created = db.prepare('SELECT * FROM wallets WHERE address=?').get(address);
+    logWalletEvent('keplr.created', { reqUserId: req.userId, wallet: created });
+    res.status(201).json(created);
+  } catch (e) {
+    logWalletEvent('keplr.insert-failed', { reqUserId: req.userId, address, error: e.message, existingAfter: db.prepare('SELECT * FROM wallets WHERE address=?').get(address) || null });
+    res.status(409).json({ error: 'Wallet already exists' });
+  }
 });
 
 // Add wallet by address (unverified — manual entry)
@@ -341,23 +371,32 @@ app.post('/api/wallets/address', auth, (req, res) => {
   const { address, label } = req.body;
   if (!address) return res.status(400).json({ error: 'Missing address' });
   if (!address.startsWith('neutaro1') || address.length < 40) return res.status(400).json({ error: 'Invalid Neutaro address format' });
+  logWalletEvent('manual.request', { reqUserId: req.userId, address, label: label || '' });
 
   const existing = db.prepare('SELECT * FROM wallets WHERE address=?').get(address);
   if (existing && existing.user_id !== req.userId) {
+    logWalletEvent('manual.conflict', { reqUserId: req.userId, existingWallet: existing, existingUser: getUserSummary(existing.user_id) });
     const merged = mergeWalletOnlyUserInto(req.userId, existing.user_id);
     if (!merged) return res.status(409).json({ error: 'Wallet linked to another account' });
+    logWalletEvent('manual.merged', { reqUserId: req.userId, fromUserId: existing.user_id, address });
     if (label) db.prepare('UPDATE wallets SET label=? WHERE address=?').run(label, address);
     return res.json(db.prepare('SELECT * FROM wallets WHERE address=?').get(address));
   }
   if (existing) {
+    logWalletEvent('manual.already-linked', { reqUserId: req.userId, wallet: existing });
     if (label) db.prepare('UPDATE wallets SET label=? WHERE address=?').run(label, address);
     return res.json(db.prepare('SELECT * FROM wallets WHERE address=?').get(address));
   }
 
   try {
     db.prepare('INSERT INTO wallets (user_id, address, label, verified) VALUES (?,?,?,0)').run(req.userId, address, label || '');
-    res.status(201).json(db.prepare('SELECT * FROM wallets WHERE address=?').get(address));
-  } catch (e) { res.status(409).json({ error: 'Wallet already exists' }); }
+    const created = db.prepare('SELECT * FROM wallets WHERE address=?').get(address);
+    logWalletEvent('manual.created', { reqUserId: req.userId, wallet: created });
+    res.status(201).json(created);
+  } catch (e) {
+    logWalletEvent('manual.insert-failed', { reqUserId: req.userId, address, error: e.message, existingAfter: db.prepare('SELECT * FROM wallets WHERE address=?').get(address) || null });
+    res.status(409).json({ error: 'Wallet already exists' });
+  }
 });
 
 // Update wallet label
