@@ -19,10 +19,11 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 const PORT = process.env.PORT || 3000;
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'nodewatch.db');
-const CHECK_INTERVAL = process.env.CHECK_INTERVAL || '*/5 * * * *';
+const CHECK_INTERVAL = process.env.CHECK_INTERVAL || '0 * * * *';
 const CHECK_TIMEOUT = parseInt(process.env.CHECK_TIMEOUT || '5000');
 const HISTORY_DAYS = parseInt(process.env.HISTORY_DAYS || '30');
 const NEUTARO_LCD = process.env.NEUTARO_LCD || 'https://api2.neutaro.io';
+const MANUAL_CHECK_COOLDOWN_MS = parseInt(process.env.MANUAL_CHECK_COOLDOWN_MS || '5000');
 const TIMPI_IDENTITY_TTL_MS = parseInt(process.env.TIMPI_IDENTITY_TTL_MS || `${6 * 60 * 60 * 1000}`);
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 
@@ -334,6 +335,7 @@ async function ensureWalletTimpiIdentity(wallet, { force = false } = {}) {
 // AUTH — Google OR Keplr, sessions by user ID
 // ══════════════════════════════════════════════════════════════
 const sessions = new Map(); // token -> { userId, expires }
+const manualNodeChecks = new Map(); // `${userId}:${nodeId}` -> last run ms
 
 function auth(req, res, next) {
   const t = req.headers['x-auth-token'];
@@ -610,6 +612,31 @@ app.delete('/api/nodes/:id', auth, (req, res) => {
   r.changes ? res.json({ deleted:true }) : res.status(404).json({ error:'Not found' });
 });
 
+app.post('/api/nodes/:id/check-now', auth, async (req, res) => {
+  const node = db.prepare('SELECT * FROM nodes WHERE id=? AND user_id=?').get(req.params.id, req.userId);
+  if (!node) return res.status(404).json({ error: 'Not found' });
+  if (node.draft || !node.host || !node.port) return res.status(400).json({ error: 'Node is not ready for health checks' });
+
+  const key = `${req.userId}:${node.id}`;
+  const now = Date.now();
+  const lastRun = manualNodeChecks.get(key) || 0;
+  const retryAfterMs = Math.max(0, MANUAL_CHECK_COOLDOWN_MS - (now - lastRun));
+  if (retryAfterMs > 0) {
+    return res.status(429).json({ error: 'Manual health check cooldown active', retry_after_ms: retryAfterMs });
+  }
+
+  manualNodeChecks.set(key, now);
+  try {
+    const result = await runSingleNodeCheck(node);
+    const latest = db.prepare('SELECT * FROM checks WHERE node_id=? ORDER BY checked_at DESC LIMIT 1').get(node.id);
+    res.json({ ok: true, node_id: node.id, result, checked_at: latest?.checked_at || new Date().toISOString() });
+  } catch (e) {
+    persistNodeCheck(node.id, { status: 'down', latency_ms: -1, error: e.message });
+    const latest = db.prepare('SELECT * FROM checks WHERE node_id=? ORDER BY checked_at DESC LIMIT 1').get(node.id);
+    res.json({ ok: true, node_id: node.id, result: { status: 'down', latency_ms: -1, error: e.message }, checked_at: latest?.checked_at || new Date().toISOString() });
+  }
+});
+
 // ══════════════════════════════════════════════════════════════
 // NODE STATUS & HISTORY
 // ══════════════════════════════════════════════════════════════
@@ -727,12 +754,28 @@ async function checkNode(host, port) {
   });
 }
 
+function persistNodeCheck(nodeId, result) {
+  db.prepare('INSERT INTO checks (node_id,status,latency_ms,error) VALUES (?,?,?,?)')
+    .run(nodeId, result.status, result.latency_ms, result.error);
+}
+
+async function runSingleNodeCheck(node) {
+  const result = await checkNode(node.host, node.port);
+  persistNodeCheck(node.id, result);
+  return result;
+}
+
 async function runHealthChecks() {
   const nodes = db.prepare("SELECT * FROM nodes WHERE COALESCE(draft, 0)=0 AND host<>'' AND port IS NOT NULL").all();
   if (!nodes.length) return;
   console.log(`[health] Checking ${nodes.length} nodes...`);
-  const ins = db.prepare('INSERT INTO checks (node_id,status,latency_ms,error) VALUES (?,?,?,?)');
-  for (const n of nodes) { try { const r=await checkNode(n.host,n.port); ins.run(n.id,r.status,r.latency_ms,r.error); } catch(e){ ins.run(n.id,'down',-1,e.message); } }
+  for (const n of nodes) {
+    try {
+      await runSingleNodeCheck(n);
+    } catch (e) {
+      persistNodeCheck(n.id, { status: 'down', latency_ms: -1, error: e.message });
+    }
+  }
   db.prepare(`DELETE FROM checks WHERE checked_at<datetime('now','-${HISTORY_DAYS} days')`).run();
   const up = db.prepare(`SELECT COUNT(DISTINCT node_id) as c FROM checks c JOIN (SELECT node_id,MAX(checked_at) as l FROM checks GROUP BY node_id) x ON c.node_id=x.node_id AND c.checked_at=x.l WHERE c.status='up'`).get();
   console.log(`[health] Done — ${up?.c||0}/${nodes.length} up`);

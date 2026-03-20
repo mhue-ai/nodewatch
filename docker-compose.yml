@@ -31,7 +31,8 @@ services:
     environment:
       - PORT=3000
       - DB_PATH=/app/data/nodewatch.db
-      - CHECK_INTERVAL=${CHECK_INTERVAL:-*/5 * * * *}
+      - CHECK_INTERVAL=${CHECK_INTERVAL:-0 * * * *}
+      - MANUAL_CHECK_COOLDOWN_MS=${MANUAL_CHECK_COOLDOWN_MS:-5000}
       - CHECK_TIMEOUT=${CHECK_TIMEOUT:-5000}
       - HISTORY_DAYS=${HISTORY_DAYS:-30}
       - NEUTARO_LCD=${NEUTARO_LCD:-https://api2.neutaro.io}

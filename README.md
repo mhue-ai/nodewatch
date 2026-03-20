@@ -160,7 +160,8 @@ The browser never contacts your nodes directly — all health checks go through 
 |----------|---------|-------------|
 | `DOMAIN` | `localhost` | Your domain — Caddy auto-provisions HTTPS |
 | `PORT` | 3000 | Internal server port (Caddy proxies to this) |
-| `CHECK_INTERVAL` | `*/5 * * * *` | Cron schedule for node checks |
+| `CHECK_INTERVAL` | `0 * * * *` | Cron schedule for background node checks |
+| `MANUAL_CHECK_COOLDOWN_MS` | `5000` | Cooldown for the manual “Check now” button |
 | `CHECK_TIMEOUT` | 5000 | Connection timeout (ms) |
 | `HISTORY_DAYS` | 30 | Days of history to keep |
 | `NEUTARO_LCD` | `https://api2.neutaro.io` | Neutaro REST endpoint |
