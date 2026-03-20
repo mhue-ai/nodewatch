@@ -11,9 +11,11 @@ Part of the **ClawPurse ecosystem** — alongside ClawPurse Wallet, ClawPurse Ga
 - **Dual authentication** — sign in with Google or Keplr wallet (or both)
 - **Multi-wallet support** — link multiple Neutaro wallets, add via Keplr or by address
 - **NFT auto-discovery** — detects Guardian, Synaptron, Collector, and GeoCore NFTs across all linked wallets
+- **Wallet identity cards** — each linked wallet shows cached delegated NTMPI plus discovered Timpi node/server ownership immediately from session data, with a manual refresh button to bust the cache on demand
+- **Draft node auto-creation** — newly discovered Timpi NFTs now create monitorable draft node/server records automatically so users only need to finish setup details like host and GUID
 - **Node registration** — fill in host, port, GUID for each NFT
 - **Automated health checks** — cron-based HTTP + TCP checks every 5 minutes
-- **Staking dashboard** — aggregated delegations, pending rewards, and validator health across all wallets
+- **Staking dashboard** — aggregated delegations, pending rewards, validator health, and per-wallet Timpi identity context across all wallets
 - **Validator monitoring** — jailed status, missed blocks, uptime, commission tracked every 15 minutes
 - **Live dashboard** — status cards, uptime sparklines, latency/uptime trend charts, event log
 - **Built-in HTTPS** — Caddy auto-provisions Let's Encrypt certificates, zero config
@@ -101,7 +103,7 @@ No accounts, no passwords, no email. Your wallet IS your identity.
 
 ### 2. NFT Discovery
 
-Once authenticated, the app queries the Neutaro LCD endpoint for all NFTs owned by your wallet address. It identifies Guardian, Synaptron, Collector, and GeoCore access NFTs and presents them as clickable cards.
+Once authenticated, the session payload already includes cached `timpi_identity` data for each linked wallet: delegated amount, Timpi node NFTs, Timpi server NFTs, refresh timestamp, and any last refresh error. The wallet tab, staking tab, and add-node modal all reuse that cached identity immediately, so newly linked wallets show ownership and delegation without waiting on a separate NFT discovery call. When a wallet is attached or manually refreshed, NodeWatch now also creates draft node records for any newly discovered Timpi NFTs that are not already represented in the user’s node list. Those drafts safely prefill the NFT ID, inferred node type, a likely display name, and the default Timpi port for that asset type while leaving host/GUID for the user to complete. If a user knows their NFTs or stake changed before the cache TTL expires, the wallet card still exposes a manual refresh action that forces a fresh Timpi identity lookup for that wallet.
 
 ### 3. Node Registration
 
@@ -162,6 +164,7 @@ The browser never contacts your nodes directly — all health checks go through 
 | `CHECK_TIMEOUT` | 5000 | Connection timeout (ms) |
 | `HISTORY_DAYS` | 30 | Days of history to keep |
 | `NEUTARO_LCD` | `https://api.neutaro.tech` | Neutaro REST endpoint |
+| `TIMPI_IDENTITY_TTL_MS` | `21600000` | How long wallet Timpi identity cache stays fresh (6h) |
 | `GOOGLE_CLIENT_ID` | *(empty)* | Google OAuth client ID (optional) |
 
 ## API Endpoints
@@ -172,11 +175,12 @@ The browser never contacts your nodes directly — all health checks go through 
 | GET | `/api/auth/challenge` | No | Get Keplr signing challenge |
 | POST | `/api/auth/google` | No | Verify Google ID token, create session |
 | POST | `/api/auth/keplr` | No | Verify wallet signature, create session |
-| GET | `/api/auth/session` | Yes | Check session, get user + wallets |
-| GET | `/api/wallets` | Yes | List linked wallets |
+| GET | `/api/auth/session` | Yes | Check session, get user + wallets (including cached `timpi_identity`) |
+| GET | `/api/wallets` | Yes | List linked wallets (including cached `timpi_identity`) |
 | POST | `/api/wallets/keplr` | Yes | Add wallet via Keplr (verified) |
 | POST | `/api/wallets/address` | Yes | Add wallet by address (manual) |
 | PUT | `/api/wallets/:id` | Yes | Update wallet label |
+| POST | `/api/wallets/:id/refresh-identity` | Yes | Force-refresh cached `timpi_identity` for one wallet |
 | DELETE | `/api/wallets/:id` | Yes | Remove wallet |
 | GET | `/api/nodes` | Yes | List user's nodes |
 | POST | `/api/nodes` | Yes | Register a node |
@@ -196,9 +200,22 @@ SQLite database at `data/nodewatch.db` (or Docker volume `nodewatch-data`).
 Tables:
 - **users** — id, google_id, email, display_name, timestamps
 - **wallets** — linked Neutaro addresses per user (verified or manual)
-- **nodes** — registered nodes with type, host, port, GUID (owned by user)
+- **wallet_timpi_identity** — cached Timpi wallet enrichment: delegated amount + Timpi server/node NFTs + refresh/error state
+- **nodes** — registered nodes with type, host, port, GUID, plus auto-created drafts for newly discovered Timpi NFTs (owned by user)
 - **checks** — health check results with timestamp, status, latency
 - **validator_snapshots** — periodic validator health records (status, jailed, uptime, missed blocks)
+
+Wallet responses now include a `timpi_identity` object shaped like:
+
+```json
+{
+  "delegated_amount": "123456789",
+  "timpi_node_nfts": [{ "token_id": "collector-001", "kind": "node", "node_type": "collector", "edition": "regular" }],
+  "timpi_server_nfts": [{ "token_id": "synaptron FE #7", "kind": "server", "node_type": "synaptron", "edition": "founders" }],
+  "refreshed_at": "2026-03-20T02:00:00.000Z",
+  "last_error": null
+}
+```
 
 ## HTTPS
 
