@@ -14,6 +14,9 @@ function titleCase(value = '') {
 }
 
 function inferAssetLabel(asset) {
+  const preferredName = String(asset?.display_name || '').trim();
+  if (preferredName) return preferredName;
+
   const typeLabel = titleCase(asset?.node_type || asset?.kind || 'Timpi Asset');
   const editionLabel = asset?.edition === 'founders' ? ' FE' : '';
   const tokenId = String(asset?.token_id || '').trim();

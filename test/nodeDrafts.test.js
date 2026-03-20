@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { DEFAULT_PORTS_BY_TYPE, inferAssetLabel, buildDraftNodesForWallet } = require('../src/nodeDrafts');
 
 test('inferAssetLabel builds user-facing labels from Timpi NFT metadata', () => {
+  assert.equal(inferAssetLabel({ display_name: 'Guardian Founders Edition #77', node_type: 'guardian', token_id: 'asset-77', edition: 'founders' }), 'Guardian Founders Edition #77');
   assert.equal(inferAssetLabel({ node_type: 'guardian', token_id: 'guardian founders edition #7', edition: 'founders' }), 'Guardian FE #7');
   assert.equal(inferAssetLabel({ node_type: 'collector', token_id: 'collector-001', edition: 'regular' }), 'Collector 001');
   assert.equal(inferAssetLabel({ node_type: 'synaptron', token_id: 'synaptron FE Alpha', edition: 'founders' }), 'Synaptron FE Alpha');
