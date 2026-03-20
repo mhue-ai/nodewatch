@@ -19,6 +19,12 @@ test('classifyTimpiNft maps Timpi node/server NFTs from token ids or metadata', 
   assert.deepEqual(classifyTimpiNft('asset-77', { extension: { name: 'Synaptron FE Alpha' } }), {
     token_id: 'asset-77', kind: 'server', node_type: 'synaptron', edition: 'founders'
   });
+  assert.deepEqual(classifyTimpiNft('Guardian Hero Founders Edition 180'), {
+    token_id: 'Guardian Hero Founders Edition 180', kind: 'node', node_type: 'guardian', edition: 'founders'
+  });
+  assert.deepEqual(classifyTimpiNft('Synaptron Hero Founders Edition 102'), {
+    token_id: 'Synaptron Hero Founders Edition 102', kind: 'server', node_type: 'synaptron', edition: 'founders'
+  });
   assert.equal(classifyTimpiNft('random-jpeg'), null);
 });
 

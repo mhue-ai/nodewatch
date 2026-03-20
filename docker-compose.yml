@@ -34,7 +34,7 @@ services:
       - CHECK_INTERVAL=${CHECK_INTERVAL:-*/5 * * * *}
       - CHECK_TIMEOUT=${CHECK_TIMEOUT:-5000}
       - HISTORY_DAYS=${HISTORY_DAYS:-30}
-      - NEUTARO_LCD=${NEUTARO_LCD:-https://api.neutaro.tech}
+      - NEUTARO_LCD=${NEUTARO_LCD:-https://api2.neutaro.io}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
     # Uncomment if checking nodes on the Docker host:
     # extra_hosts:

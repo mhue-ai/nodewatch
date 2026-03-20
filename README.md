@@ -163,7 +163,7 @@ The browser never contacts your nodes directly — all health checks go through 
 | `CHECK_INTERVAL` | `*/5 * * * *` | Cron schedule for node checks |
 | `CHECK_TIMEOUT` | 5000 | Connection timeout (ms) |
 | `HISTORY_DAYS` | 30 | Days of history to keep |
-| `NEUTARO_LCD` | `https://api.neutaro.tech` | Neutaro REST endpoint |
+| `NEUTARO_LCD` | `https://api2.neutaro.io` | Neutaro REST endpoint |
 | `TIMPI_IDENTITY_TTL_MS` | `21600000` | How long wallet Timpi identity cache stays fresh (6h) |
 | `GOOGLE_CLIENT_ID` | *(empty)* | Google OAuth client ID (optional) |
 

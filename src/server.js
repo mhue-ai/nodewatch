@@ -22,7 +22,7 @@ const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'nodew
 const CHECK_INTERVAL = process.env.CHECK_INTERVAL || '*/5 * * * *';
 const CHECK_TIMEOUT = parseInt(process.env.CHECK_TIMEOUT || '5000');
 const HISTORY_DAYS = parseInt(process.env.HISTORY_DAYS || '30');
-const NEUTARO_LCD = process.env.NEUTARO_LCD || 'https://api.neutaro.tech';
+const NEUTARO_LCD = process.env.NEUTARO_LCD || 'https://api2.neutaro.io';
 const TIMPI_IDENTITY_TTL_MS = parseInt(process.env.TIMPI_IDENTITY_TTL_MS || `${6 * 60 * 60 * 1000}`);
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 
@@ -271,8 +271,8 @@ function autoCreateDraftNodesForWallet(wallet, identity) {
         draft.name,
         draft.type,
         draft.nft_id,
-        null,
-        '',
+        draft.guid || null,
+        draft.host || '',
         draft.port,
         draft.docker_name || '-',
         wallet.id
