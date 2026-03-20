@@ -114,14 +114,16 @@ Click an NFT (or register manually) → fill in the technical details:
 | Name | Your label | Guardian-1 |
 | Type | Node type | guardian |
 | Host | IP address | 192.168.1.10 |
-| Port | HTTP port | 4005 |
+| Port | Primary service port | 4005 |
 | GUID | Registration GUID | abc-def-123 |
 
-Default ports by type:
-- **Guardian**: 4005 (also 8983 for Solr)
-- **Synaptron**: 5005
-- **Collector**: 37566
-- **GeoCore**: 4013+
+Node definitions currently modeled in NodeWatch:
+- **Guardian** — primary service **Guardian API** on `4005`, extra required service **Solr** on `8983`
+- **GeoCore** — primary service **ConnectionPort** on `4013` by default
+- **Synaptron** — NodeWatch labels the primary service as **Synaptron runtime** on `8000`; official docs say no public open ports are required, and Docker installs may also expose optional local/admin Neo4j ports `7475` and `7688`
+- **Collector** — treated as a **Collector worker**; official docs do not document a public inbound service port, so any port entered in NodeWatch should be considered an operator-supplied monitoring endpoint rather than an official default
+
+Right now NodeWatch still performs health checks against one chosen primary endpoint per node, but the UI also shows the additional named services for node types that use more than one port.
 
 ### 4. Health Monitoring
 

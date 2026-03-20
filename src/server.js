@@ -11,6 +11,7 @@ const cron = require('node-cron');
 const Database = require('better-sqlite3');
 const { enrichWalletIdentity } = require('./timpiIdentity');
 const { buildDraftNodesForWallet } = require('./nodeDrafts');
+const { definitionForType } = require('./nodeDefinitions');
 
 const app = express();
 app.use(cors());
@@ -166,6 +167,8 @@ db.exec(`
     name TEXT NOT NULL,
     type TEXT NOT NULL CHECK(type IN ('guardian','synaptron','collector','geocore')),
     nft_id TEXT, guid TEXT, host TEXT NOT NULL, port INTEGER NOT NULL,
+    service_name TEXT DEFAULT 'Primary service',
+    extra_services_json TEXT DEFAULT '[]',
     docker_name TEXT DEFAULT '-',
     draft INTEGER DEFAULT 0,
     source_wallet_id INTEGER REFERENCES wallets(id) ON DELETE SET NULL,
@@ -210,7 +213,23 @@ db.exec(`
 
 if (!columnExists('nodes', 'draft')) db.exec('ALTER TABLE nodes ADD COLUMN draft INTEGER DEFAULT 0');
 if (!columnExists('nodes', 'source_wallet_id')) db.exec('ALTER TABLE nodes ADD COLUMN source_wallet_id INTEGER REFERENCES wallets(id) ON DELETE SET NULL');
+if (!columnExists('nodes', 'service_name')) db.exec("ALTER TABLE nodes ADD COLUMN service_name TEXT DEFAULT 'Primary service'");
+if (!columnExists('nodes', 'extra_services_json')) db.exec("ALTER TABLE nodes ADD COLUMN extra_services_json TEXT DEFAULT '[]'");
 db.exec('CREATE INDEX IF NOT EXISTS idx_nodes_user_nft ON nodes(user_id, nft_id)');
+
+const decorateNodeDefinition = db.transaction(() => {
+  const rows = db.prepare("SELECT id, type, COALESCE(service_name, '') AS service_name, COALESCE(extra_services_json, '') AS extra_services_json FROM nodes").all();
+  const update = db.prepare('UPDATE nodes SET service_name=?, extra_services_json=? WHERE id=?');
+  for (const row of rows) {
+    const definition = definitionForType(row.type);
+    if (!definition) continue;
+    const currentService = String(row.service_name || '').trim();
+    const currentExtras = String(row.extra_services_json || '').trim();
+    if (currentService && currentService !== 'Primary service' && currentExtras && currentExtras !== '[]') continue;
+    update.run(definition.primary_service_name, JSON.stringify(definition.extra_services || []), row.id);
+  }
+});
+decorateNodeDefinition();
 
 // ── LCD Helper ────────────────────────────────────────────────
 async function lcdFetch(p) {
@@ -261,12 +280,13 @@ function autoCreateDraftNodesForWallet(wallet, identity) {
   if (!drafts.length) return [];
 
   const insertDraft = db.prepare(`
-    INSERT INTO nodes (user_id, name, type, nft_id, guid, host, port, docker_name, draft, source_wallet_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+    INSERT INTO nodes (user_id, name, type, nft_id, guid, host, port, service_name, extra_services_json, docker_name, draft, source_wallet_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
   `);
 
   db.transaction(() => {
     for (const draft of drafts) {
+      const definition = definitionForType(draft.type) || {};
       insertDraft.run(
         wallet.user_id,
         draft.name,
@@ -275,6 +295,8 @@ function autoCreateDraftNodesForWallet(wallet, identity) {
         draft.guid || null,
         draft.host || '',
         draft.port,
+        definition.primary_service_name || 'Primary service',
+        JSON.stringify(definition.extra_services || []),
         draft.docker_name || '-',
         wallet.id
       );
@@ -591,9 +613,10 @@ app.post('/api/nodes', auth, (req, res) => {
   const { name, type, nft_id, guid, host, port, docker_name, draft } = req.body;
   const wantsDraft = !!draft;
   if (!name || !type || (!wantsDraft && (!host || !port))) return res.status(400).json({ error: 'Missing fields' });
+  const definition = definitionForType(type) || {};
   try {
-    const r = db.prepare('INSERT INTO nodes (user_id,name,type,nft_id,guid,host,port,docker_name,draft) VALUES (?,?,?,?,?,?,?,?,?)')
-      .run(req.userId, name, type, nft_id || null, guid || null, host || '', port ? parseInt(port) : null, docker_name || '-', wantsDraft ? 1 : 0);
+    const r = db.prepare('INSERT INTO nodes (user_id,name,type,nft_id,guid,host,port,service_name,extra_services_json,docker_name,draft) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+      .run(req.userId, name, type, nft_id || null, guid || null, host || '', port ? parseInt(port) : null, definition.primary_service_name || 'Primary service', JSON.stringify(definition.extra_services || []), docker_name || '-', wantsDraft ? 1 : 0);
     res.status(201).json(db.prepare('SELECT * FROM nodes WHERE id=?').get(r.lastInsertRowid));
   } catch(e) { res.status(e.message.includes('UNIQUE')?409:500).json({ error: e.message }); }
 });
@@ -602,8 +625,10 @@ app.put('/api/nodes/:id', auth, (req, res) => {
   const n = db.prepare('SELECT * FROM nodes WHERE id=? AND user_id=?').get(req.params.id, req.userId);
   if (!n) return res.status(404).json({ error: 'Not found' });
   const { name,type,nft_id,guid,host,port,docker_name,draft } = req.body;
-  db.prepare('UPDATE nodes SET name=?,type=?,nft_id=?,guid=?,host=?,port=?,docker_name=?,draft=? WHERE id=?')
-    .run(name||n.name,type||n.type,nft_id!==undefined?nft_id:n.nft_id,guid!==undefined?guid:n.guid,host!==undefined?host:n.host,port!==undefined&&port!==''?parseInt(port):n.port,docker_name!==undefined?docker_name:n.docker_name,draft!==undefined?(draft?1:0):n.draft,n.id);
+  const resolvedType = type || n.type;
+  const definition = definitionForType(resolvedType) || {};
+  db.prepare('UPDATE nodes SET name=?,type=?,nft_id=?,guid=?,host=?,port=?,service_name=?,extra_services_json=?,docker_name=?,draft=? WHERE id=?')
+    .run(name||n.name,resolvedType,nft_id!==undefined?nft_id:n.nft_id,guid!==undefined?guid:n.guid,host!==undefined?host:n.host,port!==undefined&&port!==''?parseInt(port):n.port,definition.primary_service_name || n.service_name || 'Primary service', JSON.stringify(definition.extra_services || parseJsonArray(n.extra_services_json)), docker_name!==undefined?docker_name:n.docker_name,draft!==undefined?(draft?1:0):n.draft,n.id);
   res.json(db.prepare('SELECT * FROM nodes WHERE id=?').get(n.id));
 });
 

@@ -1,9 +1,8 @@
-const DEFAULT_PORTS_BY_TYPE = {
-  guardian: 4005,
-  synaptron: 5005,
-  collector: 37566,
-  geocore: 4013
-};
+const { NODE_DEFINITIONS } = require('./nodeDefinitions');
+
+const DEFAULT_PORTS_BY_TYPE = Object.fromEntries(
+  Object.entries(NODE_DEFINITIONS).map(([type, definition]) => [type, definition.default_port])
+);
 
 function titleCase(value = '') {
   return String(value)
