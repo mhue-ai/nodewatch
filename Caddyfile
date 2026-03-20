@@ -1,4 +1,5 @@
 {$DOMAIN:localhost} {
+    tls internal
     reverse_proxy nodewatch:3000
     encode gzip
 
