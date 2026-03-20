@@ -79,13 +79,17 @@ function buildDraftNodesForWallet({ wallet, assets = [], existingNodes = [] }) {
     if (!type || !DEFAULT_PORTS_BY_TYPE[type]) continue;
 
     const baseName = inferAssetLabel(asset);
+    const inferredHost = String(asset?.host || '').trim();
+    const inferredGuid = String(asset?.guid || '').trim();
+    const inferredPort = Number.isInteger(asset?.port) ? asset.port : DEFAULT_PORTS_BY_TYPE[type];
+
     drafts.push({
       name: nextUniqueName(baseName, existingNames),
       type,
       nft_id: nftId,
-      guid: null,
-      host: '',
-      port: DEFAULT_PORTS_BY_TYPE[type],
+      guid: inferredGuid || null,
+      host: inferredHost,
+      port: inferredPort,
       docker_name: '-',
       draft: 1,
       source_wallet_id: wallet?.id || null,

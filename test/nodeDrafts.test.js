@@ -21,17 +21,18 @@ test('buildDraftNodesForWallet creates only missing NFT-backed drafts with infer
     existingNodes,
     assets: [
       { token_id: 'collector-001', kind: 'node', node_type: 'collector', edition: 'regular' },
-      { token_id: 'guardian founders edition #7', kind: 'node', node_type: 'guardian', edition: 'founders' },
+      { token_id: 'guardian founders edition #7', kind: 'node', node_type: 'guardian', edition: 'founders', guid: 'guardian-guid-7', host: 'guardian.local', port: 4100 },
       { token_id: 'synaptron FE Alpha', kind: 'server', node_type: 'synaptron', edition: 'founders' }
     ]
   });
 
   assert.equal(drafts.length, 2);
   assert.deepEqual(drafts.map((draft) => draft.nft_id), ['guardian founders edition #7', 'synaptron FE Alpha']);
-  assert.equal(drafts[0].port, DEFAULT_PORTS_BY_TYPE.guardian);
+  assert.equal(drafts[0].port, 4100);
   assert.equal(drafts[1].port, DEFAULT_PORTS_BY_TYPE.synaptron);
   assert.equal(drafts[0].draft, 1);
-  assert.equal(drafts[0].host, '');
+  assert.equal(drafts[0].host, 'guardian.local');
+  assert.equal(drafts[0].guid, 'guardian-guid-7');
   assert.equal(drafts[0].source_wallet_id, wallet.id);
   assert.notEqual(drafts[0].name, drafts[1].name);
 });
