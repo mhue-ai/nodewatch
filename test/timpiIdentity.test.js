@@ -6,7 +6,8 @@ const {
   fetchOwnedTimpiNfts,
   enrichWalletIdentity,
   normalizeTimpiNft,
-  enrichTokenMetadata
+  enrichTokenMetadata,
+  normalizeHostCandidate
 } = require('../src/timpiIdentity');
 
 test('classifyTimpiNft maps Timpi node/server NFTs from token ids or metadata', () => {
@@ -26,6 +27,12 @@ test('classifyTimpiNft maps Timpi node/server NFTs from token ids or metadata', 
     token_id: 'Synaptron Hero Founders Edition 102', kind: 'server', node_type: 'synaptron', edition: 'founders'
   });
   assert.equal(classifyTimpiNft('random-jpeg'), null);
+});
+
+test('normalizeHostCandidate extracts a usable host/ip', () => {
+  assert.equal(normalizeHostCandidate('https://203.0.113.44:4005/status'), '203.0.113.44');
+  assert.equal(normalizeHostCandidate('guardian.example.com'), 'guardian.example.com');
+  assert.equal(normalizeHostCandidate('[2001:db8::9]'), '2001:db8::9');
 });
 
 test('normalizeTimpiNft preserves richer display metadata', () => {
@@ -55,15 +62,17 @@ test('enrichTokenMetadata merges token_uri json with extension fields', async ()
       token_uri: 'https://example.com/nft/77.json',
       extension: { guid: 'abc-123' }
     }
-  }, async (url) => ({ ok: true, json: async () => ({ name: 'Guardian Founders Edition #77', host: '10.0.0.44', port: 4013, extra: true }) }));
+  }, async (url) => ({ ok: true, json: async () => ({ name: 'Guardian Founders Edition #77', external_ip: '10.0.0.44', public_port: 4013, extra: true }) }));
 
   assert.deepEqual(enriched.merged_extension, {
     name: 'Guardian Founders Edition #77',
-    host: '10.0.0.44',
-    port: 4013,
+    external_ip: '10.0.0.44',
+    public_port: 4013,
     extra: true,
     guid: 'abc-123'
   });
+  assert.equal(normalizeTimpiNft('asset-77', enriched).host, '10.0.0.44');
+  assert.equal(normalizeTimpiNft('asset-77', enriched).port, 4013);
 });
 
 test('fetchOwnedTimpiNfts paginates CW721 tokens and enriches each token with metadata', async () => {

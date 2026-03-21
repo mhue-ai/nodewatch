@@ -48,6 +48,28 @@ function firstMetadataMatch(metadata, patterns = []) {
   return null;
 }
 
+function normalizeHostCandidate(value) {
+  if (value === null || value === undefined) return null;
+  let raw = String(value).trim();
+  if (!raw) return null;
+
+  try {
+    if (/^https?:\/\//i.test(raw)) {
+      const parsed = new URL(raw);
+      raw = parsed.hostname || raw;
+    }
+  } catch {}
+
+  raw = raw.replace(/^\[|\]$/g, '').trim();
+  if (!raw) return null;
+
+  const ipv4 = raw.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
+  if (ipv4) return ipv4[0];
+
+  if (/^[a-z0-9.-]+$/i.test(raw) || raw.includes(':')) return raw;
+  return null;
+}
+
 function classifyTimpiNft(tokenId, metadata = null) {
   const fields = flattenMetadataStrings([tokenId, metadata]).join(' | ').toLowerCase();
   const isFoundersEdition = fields.includes('founders edition') || fields.includes('founders_edition') || fields.includes('fe ');
@@ -114,8 +136,8 @@ function normalizeTimpiNft(tokenId, metadata = null) {
   const displayName = extension?.name || metadata?.info?.name || metadata?.name || tokenId;
   const description = extension?.description || metadata?.description || null;
   const guid = firstMetadataMatch(extension || metadata, ['guid', 'node_guid', 'server_guid', 'machine_guid']);
-  const host = firstMetadataMatch(extension || metadata, ['host', 'hostname', 'ip', 'address', 'endpoint', 'url']);
-  const portRaw = firstMetadataMatch(extension || metadata, ['port']);
+  const host = normalizeHostCandidate(firstMetadataMatch(extension || metadata, ['host', 'hostname', 'ip', 'ip_address', 'public_ip', 'external_ip', 'address', 'endpoint', 'url', 'rpc_url']));
+  const portRaw = firstMetadataMatch(extension || metadata, ['port', 'public_port', 'external_port']);
   const port = portRaw && /^\d+$/.test(String(portRaw).trim()) ? parseInt(String(portRaw).trim(), 10) : null;
 
   return {
@@ -182,6 +204,7 @@ module.exports = {
   fetchJsonUrl,
   fetchTokenMetadata,
   enrichTokenMetadata,
+  normalizeHostCandidate,
   normalizeTimpiNft,
   fetchOwnedTimpiNfts,
   enrichWalletIdentity

@@ -12,6 +12,7 @@ const Database = require('better-sqlite3');
 const { enrichWalletIdentity } = require('./timpiIdentity');
 const { buildDraftNodesForWallet } = require('./nodeDrafts');
 const { definitionForType } = require('./nodeDefinitions');
+const { discoverExternalIp } = require('./externalIp');
 
 const app = express();
 app.use(cors());
@@ -608,6 +609,14 @@ app.post('/api/wallets/:id/refresh-identity', auth, async (req, res) => {
 app.delete('/api/wallets/:id', auth, (req, res) => {
   const r = db.prepare('DELETE FROM wallets WHERE id=? AND user_id=?').run(req.params.id, req.userId);
   r.changes ? res.json({ deleted: true }) : res.status(404).json({ error: 'Not found' });
+});
+
+app.get('/api/utils/external-ip', auth, async (_req, res) => {
+  try {
+    res.json(await discoverExternalIp(fetch));
+  } catch (error) {
+    res.status(502).json({ error: error.message || 'Unable to determine external IP', details: error.details || [] });
+  }
 });
 
 // ══════════════════════════════════════════════════════════════
