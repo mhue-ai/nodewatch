@@ -13,6 +13,7 @@ const { enrichWalletIdentity } = require('./timpiIdentity');
 const { buildDraftNodesForWallet } = require('./nodeDrafts');
 const { definitionForType } = require('./nodeDefinitions');
 const { discoverExternalIp } = require('./externalIp');
+const { createChallengeStore, verifyKeplrSignature } = require('./auth');
 
 const app = express();
 app.use(cors());
@@ -28,6 +29,7 @@ const NEUTARO_LCD = process.env.NEUTARO_LCD || 'https://api2.neutaro.io';
 const MANUAL_CHECK_COOLDOWN_MS = parseInt(process.env.MANUAL_CHECK_COOLDOWN_MS || '5000');
 const TIMPI_IDENTITY_TTL_MS = parseInt(process.env.TIMPI_IDENTITY_TTL_MS || `${6 * 60 * 60 * 1000}`);
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const authChallenges = createChallengeStore();
 
 // ── Database ──────────────────────────────────────────────────
 const db = new Database(DB_PATH);
@@ -458,23 +460,19 @@ app.post('/api/auth/google', async (req, res) => {
 
 // ── Keplr Wallet Auth ─────────────────────────────────────────
 app.get('/api/auth/challenge', (_, res) => {
-  const nonce = crypto.randomBytes(32).toString('hex');
-  res.json({ nonce, message: `Sign this message to authenticate with Timpi NodeWatch.\n\nNonce: ${nonce}\nTimestamp: ${new Date().toISOString()}` });
+  authChallenges.sweep();
+  res.json(authChallenges.issue());
 });
 
 app.post('/api/auth/keplr', async (req, res) => {
   const { address, signature, pub_key, message } = req.body;
   if (!address || !signature || !pub_key || !message) return res.status(400).json({ error: 'Missing fields' });
 
-  let valid = false;
-  try {
-    const { verifyADR36Amino } = await import('@cosmjs/amino');
-    const { fromBase64 } = await import('@cosmjs/encoding');
-    valid = verifyADR36Amino('neutaro', address, message, fromBase64(pub_key), fromBase64(signature));
-  } catch (e) {
-    if (address.startsWith('neutaro1') && address.length >= 40) valid = true;
-  }
-  if (!valid) return res.status(401).json({ error: 'Invalid signature' });
+  const challenge = authChallenges.consume(message);
+  if (!challenge.ok) return res.status(400).json({ error: challenge.error });
+
+  const verification = await verifyKeplrSignature({ address, signature, pub_key, message });
+  if (!verification.ok) return res.status(401).json({ error: verification.error });
 
   // Check if this wallet already belongs to a user
   let wallet = db.prepare('SELECT * FROM wallets WHERE address=?').get(address);
@@ -504,6 +502,16 @@ app.get('/api/auth/session', auth, (req, res) => {
   res.json({ user: { id: user.id, email: user.email, display_name: user.display_name, google_id: !!user.google_id, wallets } });
 });
 
+// ── Health / readiness ────────────────────────────────────────
+app.get('/api/health', (_, res) => {
+  try {
+    db.prepare('SELECT 1').get();
+    res.json({ ok: true, service: 'nodewatch', uptime_s: Math.round(process.uptime()), timestamp: new Date().toISOString() });
+  } catch (error) {
+    res.status(500).json({ ok: false, service: 'nodewatch', error: error.message, timestamp: new Date().toISOString() });
+  }
+});
+
 // ══════════════════════════════════════════════════════════════
 // WALLET MANAGEMENT — add, remove, list
 // ══════════════════════════════════════════════════════════════
@@ -518,15 +526,11 @@ app.post('/api/wallets/keplr', auth, async (req, res) => {
   if (!address || !signature || !pub_key || !message) return res.status(400).json({ error: 'Missing fields' });
   logWalletEvent('keplr.request', { reqUserId: req.userId, address, label: label || '' });
 
-  let valid = false;
-  try {
-    const { verifyADR36Amino } = await import('@cosmjs/amino');
-    const { fromBase64 } = await import('@cosmjs/encoding');
-    valid = verifyADR36Amino('neutaro', address, message, fromBase64(pub_key), fromBase64(signature));
-  } catch (e) {
-    if (address.startsWith('neutaro1') && address.length >= 40) valid = true;
-  }
-  if (!valid) return res.status(401).json({ error: 'Invalid signature' });
+  const challenge = authChallenges.consume(message);
+  if (!challenge.ok) return res.status(400).json({ error: challenge.error });
+
+  const verification = await verifyKeplrSignature({ address, signature, pub_key, message });
+  if (!verification.ok) return res.status(401).json({ error: verification.error });
 
   // Check if wallet is already linked to another user
   const existing = db.prepare('SELECT * FROM wallets WHERE address=?').get(address);
