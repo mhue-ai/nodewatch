@@ -24,7 +24,7 @@ EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-  CMD wget -qO- http://localhost:3000/api/auth/challenge || exit 1
+  CMD wget -qO- http://127.0.0.1:3000/api/health || exit 1
 
 # Run
 CMD ["node", "src/server.js"]
